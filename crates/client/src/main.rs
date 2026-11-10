@@ -63,6 +63,9 @@ struct Options {
     /// Alterna aceleração, direção, freio e ré para testar estabilidade.
     #[arg(long, requires = "smoke_frames", conflicts_with_all = ["smoke_drive", "smoke_map"])]
     smoke_maneuvers: bool,
+    /// Ângulo externo para revisão visual automatizada; não altera a câmera normal.
+    #[arg(long, requires = "smoke_frames", value_parser = ["front", "side", "rear"])]
+    smoke_view: Option<String>,
     /// Abre o mapa no smoke, para inspeção da interface sem dirigir.
     #[arg(long, requires = "smoke_frames", conflicts_with = "smoke_drive", value_parser = ["local", "regional"])]
     smoke_map: Option<String>,
@@ -206,14 +209,26 @@ impl Plugin for Game {
             frames: 0,
             paint: saved.paint,
             quality: saved.shadows,
-            camera_mode: saved.camera,
+            camera_mode: if options.smoke_view.is_some() {
+                0
+            } else {
+                saved.camera
+            },
             help: true,
             network,
             remotes: BTreeMap::new(),
             saved_at: Instant::now(),
-            orbit: 0.59,
+            orbit: match options.smoke_view.as_deref() {
+                Some("front") => 2.55,
+                Some("side") => std::f32::consts::FRAC_PI_2,
+                _ => 0.59,
+            },
             pitch: 0.32,
-            distance: 22.0,
+            distance: if options.smoke_view.as_deref() == Some("front") {
+                14.0
+            } else {
+                22.0
+            },
             dragging: false,
             cursor: None,
             gpu: String::new(),

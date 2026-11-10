@@ -1,5 +1,6 @@
 //! Geometria original portada de `web/src/render` e `web/src/vehicle` (346aced).
 //! Faces planas, paleta compartilhada e lotes por material. Nenhum asset externo.
+mod vehicle_detail;
 use fyrox::{
     core::{
         algebra::{Quaternion, UnitQuaternion, Vector2, Vector3},
@@ -29,7 +30,7 @@ pub const PAINTS: [u32; 6] = [0xd23a2c, 0xe8902c, 0xf0c02e, 0x2f6fd0, 0x93ad5c, 
 const FRAME: u32 = 0x474b52;
 const TIRE: u32 = 0x2c2d31;
 const RIM: u32 = 0xe4e7ea;
-const GLASS: u32 = 0x89b5c4;
+const GLASS: u32 = 0x3e5a66;
 pub fn color(c: u32) -> Color {
     Color::opaque((c >> 16) as u8, (c >> 8) as u8, c as u8)
 }
@@ -313,6 +314,8 @@ pub struct VehicleVisual {
     pub wheels: Vec<Handle<Node>>,
     pub trailer_wheels: Vec<Handle<Node>>,
     legs: Handle<Node>,
+    running_gear: vehicle_detail::RunningGear,
+    trailer_gear: vehicle_detail::RunningGear,
     remote_position: Option<V>,
     remote_spin: f32,
 }
@@ -324,19 +327,15 @@ impl VehicleVisual {
         b.cuboid(FRAME, [1.1, 0.4, 2.4], [0.0, 0.0, 2.1], 0.04);
         b.cuboid(paint, [2.5, 2.0, 2.0], [0.0, 1.29, 2.45], 0.11);
         // Recorte inferior em torno do eixo dianteiro: sem pneus atravessando a cabine.
-        b.cuboid(paint, [2.5, 0.58, 0.38], [0.0, 0.0, 3.26], 0.04);
+        b.cuboid(paint, [2.5, 0.58, 0.38], [0.0, 0.0, 3.36], 0.04);
         b.cuboid(paint, [2.5, 0.58, 0.38], [0.0, 0.0, 1.64], 0.04);
         b.cuboid(GLASS, [2.18, 0.82, 0.06], [0.0, 1.65, 3.46], 0.025);
         b.cuboid(FRAME, [0.06, 0.84, 0.08], [0.0, 1.65, 3.48], 0.01);
         b.cuboid(0x1d1f23, [1.5, 0.45, 0.07], [0.0, 0.75, 3.47], 0.025);
         b.cuboid(RIM, [2.5, 0.26, 0.28], [0.0, -0.13, 3.52], 0.04);
         // Defletor, pala e frisos grandes: legíveis sem texturas ou reflexos caros.
-        b.cuboid(paint, [2.3, 0.32, 1.7], [0.0, 2.4, 2.25], 0.13);
         b.cuboid(paint, [2.45, 0.13, 0.34], [0.0, 2.16, 3.47], 0.035);
         b.cuboid(RIM, [2.15, 0.09, 0.07], [0.0, 1.12, 3.5], 0.015);
-        for y in [0.62, 0.76, 0.9] {
-            b.cuboid(0x78818a, [1.34, 0.045, 0.04], [0.0, y, 3.52], 0.008);
-        }
         for side in [-1.0, 1.0] {
             b.cuboid(RIM, [0.045, 0.09, 0.24], [side * 1.285, 1.08, 1.96], 0.015);
             b.cuboid(paint, [0.045, 0.22, 1.1], [side * 1.275, 0.94, 2.6], 0.015);
@@ -359,6 +358,7 @@ impl VehicleVisual {
             );
         }
         b.cuboid(0x55585e, [0.95, 0.12, 1.15], [0.0, 0.28, -1.95], 0.05);
+        vehicle_detail::truck(&mut b, paint);
         let truck = b.build("Cavalo mecânico", graph);
         let mut b = Batch::default();
         b.cuboid(FRAME, [2.0, 0.32, 12.0], [0.0, 0.16, 0.0], 0.04);
@@ -373,6 +373,7 @@ impl VehicleVisual {
             b.cuboid(RIM, [0.045, 2.25, 0.055], [s * 0.72, 1.68, -5.99], 0.008);
             b.cuboid(0xff3a2c, [0.32, 0.15, 0.06], [s * 0.86, 0.15, -6.04], 0.01);
         }
+        vehicle_detail::trailer(&mut b);
         let trailer = b.build("Reboque baú", graph);
         let mut b = Batch::default();
         for x in [-0.9, 0.9] {
@@ -405,6 +406,8 @@ impl VehicleVisual {
             wheels: all,
             trailer_wheels,
             legs,
+            running_gear: vehicle_detail::RunningGear::new(graph),
+            trailer_gear: vehicle_detail::RunningGear::new(graph),
             remote_position: None,
             remote_spin: 0.0,
         }
@@ -413,6 +416,18 @@ impl VehicleVisual {
         graph[self.legs].set_visibility(!s.coupled);
         set_pose(graph, self.truck, s.truck);
         set_pose(graph, self.trailer, s.trailer);
+        self.running_gear.update(
+            graph,
+            s.truck,
+            &std::array::from_fn::<_, 6, _>(|i| V::from(s.wheels[i].center)),
+            -0.16,
+        );
+        self.trailer_gear.update(
+            graph,
+            s.trailer,
+            &std::array::from_fn::<_, 6, _>(|i| V::from(s.trailer_wheels[i].center)),
+            0.0,
+        );
         for (handles, wheels, pose) in [
             (&self.wheels, &s.wheels, s.truck),
             (&self.trailer_wheels, &s.trailer_wheels, s.trailer),
@@ -430,6 +445,8 @@ impl VehicleVisual {
         }
     }
     pub fn remove(self, graph: &mut Graph) {
+        self.running_gear.remove(graph);
+        self.trailer_gear.remove(graph);
         for h in [self.truck, self.trailer]
             .into_iter()
             .chain(self.wheels)
@@ -469,7 +486,12 @@ impl VehicleVisual {
                 ) * UnitQuaternion::from_axis_angle(&V::x_axis(), self.remote_spin),
             );
         }
+        let q = rotation(v.rotation);
+        let centers = truck_sim::WHEEL_MOUNTS
+            .map(|m| V::from(v.position) + q * V::new(m[0], m[1] - 0.4, m[2]));
+        self.running_gear.update(graph, truck, &centers, -0.16);
         graph[self.trailer].set_visibility(v.trailer.is_some());
+        self.trailer_gear.visible(graph, v.trailer.is_some());
         for h in &self.trailer_wheels {
             graph[*h].set_visibility(v.trailer.is_some());
         }
@@ -493,8 +515,26 @@ impl VehicleVisual {
                             -4.5 + (i / 2) as f32 * 1.3,
                         ),
                 );
-                t.set_rotation(q);
+                t.set_rotation(q * UnitQuaternion::from_axis_angle(&V::x_axis(), self.remote_spin));
             }
+            let q = rotation(p.rotation);
+            let centers = std::array::from_fn::<_, 6, _>(|i| {
+                V::from(p.position)
+                    + q * V::new(
+                        if i % 2 == 0 { -1.05 } else { 1.05 },
+                        -0.95,
+                        -4.5 + (i / 2) as f32 * 1.3,
+                    )
+            });
+            self.trailer_gear.update(
+                graph,
+                Pose {
+                    position: p.position,
+                    rotation: p.rotation,
+                },
+                &centers,
+                0.0,
+            );
         }
     }
 }
@@ -811,52 +851,65 @@ mod tests {
         assert_eq!(scenery.resident_chunks(), 9);
     }
     #[test]
-    fn rendered_truck_keeps_clearance_for_all_six_tires_at_full_compression() {
+    fn rendered_vehicles_keep_tire_clearance_at_full_compression_and_steering() {
         let mut graph = Graph::new();
         let visual = VehicleVisual::new(&mut graph, 0);
-        let mesh = &graph[visual.truck.transmute::<Mesh>()];
-        let mut triangles = Vec::new();
-        for surface in mesh.surfaces() {
-            let resource = surface.data();
-            let data = resource.data_ref();
-            let vertices = data
-                .vertex_buffer
-                .iter()
-                .map(|v| v.read_3_f32(VertexAttributeUsage::Position).unwrap())
-                .collect::<Vec<_>>();
-            for triangle in data.geometry_buffer.iter() {
-                triangles.push(triangle.0.map(|i| vertices[i as usize]));
+        let trailer_mounts = [-4.5, -3.2, -1.9]
+            .into_iter()
+            .flat_map(|z| [[-1.05, -0.55, z], [1.05, -0.55, z]])
+            .collect::<Vec<_>>();
+        for (body, mounts, tire_radius, steer_front) in [
+            (visual.truck, truck_sim::WHEEL_MOUNTS.to_vec(), 0.52, true),
+            (visual.trailer, trailer_mounts, 0.5, false),
+        ] {
+            let mesh = &graph[body.transmute::<Mesh>()];
+            let mut triangles = Vec::new();
+            for surface in mesh.surfaces() {
+                let resource = surface.data();
+                let data = resource.data_ref();
+                let vertices = data
+                    .vertex_buffer
+                    .iter()
+                    .map(|v| v.read_3_f32(VertexAttributeUsage::Position).unwrap())
+                    .collect::<Vec<_>>();
+                for triangle in data.geometry_buffer.iter() {
+                    triangles.push(triangle.0.map(|i| vertices[i as usize]));
+                }
             }
-        }
-        assert!(triangles.len() < 6000);
-        for (axle, mount) in truck_sim::WHEEL_MOUNTS.into_iter().enumerate() {
-            for steering in if axle < 2 {
-                vec![-0.6, 0.0, 0.6]
-            } else {
-                vec![0.0]
-            } {
-                for suspension in [0.45, 0.15] {
-                    for radius in [0.2, 0.55, 0.9] {
-                        for sample in 0..24 {
-                            let angle = sample as f32 * std::f32::consts::TAU / 24.0;
-                            let side = mount[0].signum();
-                            let rotation = UnitQuaternion::from_axis_angle(&V::y_axis(), steering);
-                            let ray = Ray::new(
-                                V::new(mount[0], mount[1] - suspension, mount[2])
-                                    + rotation
-                                        * V::new(
-                                            side * 0.205,
-                                            0.52 * radius * angle.sin(),
-                                            0.52 * radius * angle.cos(),
-                                        ),
-                                rotation * V::new(-side * 0.41, 0.0, 0.0),
-                            );
-                            assert!(
-                                !triangles
-                                    .iter()
-                                    .any(|t| ray.triangle_intersection(t).is_some()),
-                                "carroceria atravessa pneu {mount:?}, suspensão {suspension}, esterço {steering}, amostra {sample}"
-                            );
+            assert!(triangles.len() < 6000);
+            for (axle, mount) in mounts.into_iter().enumerate() {
+                for steering in if steer_front && axle < 2 {
+                    vec![-0.6, 0.0, 0.6]
+                } else {
+                    vec![0.0]
+                } {
+                    for suspension in [0.45, 0.15] {
+                        for radius in [0.2, 0.6, 0.99] {
+                            for sample in 0..24 {
+                                let angle = sample as f32 * std::f32::consts::TAU / 24.0;
+                                let side = mount[0].signum();
+                                let rotation =
+                                    UnitQuaternion::from_axis_angle(&V::y_axis(), steering);
+                                let ray = Ray::new(
+                                    V::new(mount[0], mount[1] - suspension, mount[2])
+                                        + rotation
+                                            * V::new(
+                                                side * 0.205,
+                                                tire_radius * radius * angle.sin(),
+                                                tire_radius * radius * angle.cos(),
+                                            ),
+                                    rotation * V::new(-side * 0.41, 0.0, 0.0),
+                                );
+                                assert!(
+                                    !triangles
+                                        .iter()
+                                        .any(|t| ray.triangle_intersection(t).is_some()),
+                                    "carroceria atravessa pneu {mount:?}, suspensão {suspension}, esterço {steering}, amostra {sample}, face {:?}",
+                                    triangles
+                                        .iter()
+                                        .find(|t| ray.triangle_intersection(t).is_some())
+                                );
+                            }
                         }
                     }
                 }

@@ -22,6 +22,26 @@ WebSocket é somente o transporte de rede; não requer navegador. OpenGL foi
 escolhido para alcançar também hardware antigo. Isso não garante ganho de
 FPS: desempenho e compatibilidade precisam ser medidos no executável.
 
+## Acabamento visual do caminhão e conjunto rodante
+
+- Eixos/diferenciais e hastes de suspensão visíveis ligam as rodas ao chassi,
+  acompanhando o movimento sem girar junto com os pneus. Remotos recebem a
+  mesma montagem com compressão aproximada, sem alteração do protocolo.
+- Para-lamas facetados no cavalo e baú, para-barros, suportes, tanque/degraus,
+  defletor inclinado, grade e vidros mais escuros. Construção original a partir
+  da referência de estilo, sem marcas, modelos ou texturas de terceiros.
+- Mantidos os limites de 6.000 triângulos no cavalo e 4.000 no baú, incluindo
+  rodas, conjunto rodante e pés de apoio. Testes verificam orçamento, remoção
+  completa dos nós, ligação dos eixos e folga dos pneus na suspensão/esterço.
+- Não altera a física de condução. Novos nós têm custo de desenho ainda sem
+  benchmark; validação gráfica Linux e sessão LAN entre pessoas pendentes.
+- Regras e detalhes em [ART_STYLE.md](docs/ART_STYLE.md).
+- Windows GNU: 69 testes do workspace, formatação e Clippy passaram. Capturas
+  nativas frontal/lateral inspecionadas na Intel HD 4000, com seis contatos do
+  cavalo e baú engatado; smokes encerraram por limite de quadros com código 0.
+  Build incremental atualizado, sem gerar novo pacote portátil. As capturas
+  curtas não constituem benchmark nem validação humana de condução.
+
 ## Direção suave e estabilidade do conjunto carregado
 
 - Tombamento reproduzido em curva contínua a 60 km/h. Novo teste verifica

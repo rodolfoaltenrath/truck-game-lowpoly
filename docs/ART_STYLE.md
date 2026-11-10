@@ -57,6 +57,34 @@ separada; o vão inferior da cabine e os para-lamas respeitam a suspensão.
 
 ## Renderização nativa
 
+### Acabamento do caminhão e ligação das rodas
+
+Revisão de 10/11/2026, após nova referência de frota enviada pelo proprietário:
+geometria própria de cabine avançada, sem marcas ou modelos da imagem.
+Para-lamas facetados envolvem o eixo dianteiro, tandem do cavalo e os três
+eixos do baú. Eixos/diferenciais acompanham os centros das rodas e hastes
+ligam cada eixo ao chassi, variando com a suspensão sem girar com o pneu.
+O multiplayer usa os mesmos detalhes, com suspensão aproximada pela pose
+disponível na rede; a compressão individual não é transmitida.
+
+Cabine recebe defletor inclinado, grade, vidros escuros com faixa de reflexo
+estilizada, suportes dos retrovisores, tanque, cintas, degraus e aletas traseiras.
+Baú recebe para-lamas, suportes, para-barros e proteção traseira/lateral.
+São detalhes visuais; não acrescentam colisores nem alteram o acerto de direção.
+
+Geometria adicional em `crates/client/src/visual/vehicle_detail.rs`. Lotes
+por material, malhas de eixos/hastes clonadas e atualização sem vetores
+temporários no conjunto rodante local. Limites de 6.000/4.000 triângulos
+incluem rodas, eixos, hastes e pés do baú; teste também exige remoção de todos
+os nós ao recriar veículos. Não há ganho de FPS medido.
+
+O teste de folga dos pneus cobre cavalo e baú, compressão de suspensão e
+esterço máximo dianteiro, com amostras até 99% do raio. A saia dianteira foi
+afastada do pneu para eliminar interseção no extremo de esterço/compressão.
+
+`--smoke-view front|side|rear`, junto com `--smoke-frames`, fixa um ângulo
+externo de revisão visual. Não altera o enquadramento normal de condução.
+
 O relevo dirigível do piloto vem de `game_core::terrain`: desenho, pintura e
 colisão compartilham o perfil de altura e as curvas. Faces de solo são cortadas
 nos nós do perfil antes da transformação, mantendo as faixas adjacentes sem

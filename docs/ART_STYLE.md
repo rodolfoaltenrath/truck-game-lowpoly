@@ -1,7 +1,15 @@
-# Guia de arte — low poly charmoso
+# Guia de arte — estilizado com acabamento detalhado
 
-O jogo **não** busca realismo. O alvo é um low poly bem acabado, coeso e
-charmoso: formas simples e legíveis, cores sólidas, luz suave e quente.
+O alvo atual é um visual estilizado com formas legíveis, materiais distintos,
+iluminação quente e detalhes no caminhão. Em 10/11/2026, o proprietário adotou
+`caminhao_detalhado.glb` como referência e modelo próprio. Cabines avançadas e
+com capô são permitidas. O orçamento depende da distância e do custo medido;
+aumentar polígonos indiscriminadamente não é a direção de arte.
+
+O modelo detalhado usa normais suavizadas seletivamente, preservando quinas,
+e materiais PBR para pintura, metal, vidro e borracha. Pneus rodoviários têm
+sulcos discretos, sem cravos. As regras de faces planas, rodas de 14 lados e
+6.000 triângulos abaixo descrevem a geometria procedural simplificada.
 
 ## Referência
 
@@ -49,7 +57,8 @@ separada; o vão inferior da cabine e os para-lamas respeitam a suspensão.
 
 | Categoria | Triângulos |
 |---|---|
-| Cavalo mecânico | ≤ 6.000 (rodas incluídas) |
+| Cavalo mecânico simplificado | ≤ 6.000 (rodas incluídas) |
+| Cavalo detalhado próximo | ≤ 100.000 (rodas incluídas) |
 | Reboque | ≤ 4.000 |
 | Árvore / pedra | ≤ 300 |
 | Prédio pequeno | ≤ 1.500 |
@@ -97,10 +106,20 @@ A estrada usa faces horizontais adjacentes, incluindo a pintura; vegetação em
 lotes de 200 m compartilha materiais. Manter a resolução nativa e medir o custo
 global antes de afirmar ganhos: o cenário agora contém mais objetos.
 
-Fyrox/OpenGL 3.3, janela em resolução nativa. Preset inicial sem SSAO, HDR,
-FXAA ou sombras; G alterna sombras de 512. Não reduzir automaticamente a
-resolução. Reavaliar antialiasing e brilho após medir custo e nitidez na GPU
-real; o port inicial não promete equivalência de iluminação com Babylon.
+Fyrox/OpenGL 3.3, janela em resolução nativa, HDR e exposição fixa nos dois
+modos. O modo leve desliga sombras e bloom; G alterna o acabamento com sombras
+de 512 e bloom nas luzes emissivas. SSAO e FXAA ficam desligados. Céu e reflexo
+ambiental vêm de cubemap procedural de 64 pixels por face. Toda geometria
+fornece normais e tangentes válidas ao shader. Não reduzir automaticamente a
+resolução. Os smokes na Intel HD 4000 ficaram aproximadamente em 15–22 FPS;
+não são benchmark comparável nem demonstram melhoria de desempenho.
+
+O GLB original permanece intacto. `visual/detailed.rs` adapta escala/eixos,
+separa rodas e substitui os pneus por geometria própria. Rodas acompanham a
+simulação; eixos e suspensão procedural continuam visíveis. Apenas os dois
+remotos mais próximos, até 65 m, recebem o modelo detalhado. Os demais usam
+a cabine procedural anterior, provisória: ainda falta um LOD com a mesma
+silhueta. Colisores não foram remodelados e o vidro não simula transmissão.
 
 ## Histórico do pós-processamento web
 

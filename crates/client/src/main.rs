@@ -25,11 +25,10 @@ use fyrox::{
     },
     keyboard::{KeyCode, PhysicalKey},
     plugin::{Plugin, PluginContext, error::GameResult},
-    renderer::QualitySettings,
     scene::{
         Scene,
         base::BaseBuilder,
-        camera::{Camera, CameraBuilder},
+        camera::{Camera, CameraBuilder, Exposure},
         light::{BaseLightBuilder, directional::DirectionalLightBuilder},
         transform::TransformBuilder,
     },
@@ -131,6 +130,7 @@ impl Plugin for Game {
             .add(UserInterface::new(Vector2::new(1100.0, 700.0)));
         let mut scene = Scene::new();
         let scenery = visual::world(&mut scene);
+        visual::lighting::environment(&mut scene);
         DirectionalLightBuilder::new(
             BaseLightBuilder::new(
                 BaseBuilder::new().with_name("Sol").with_local_transform(
@@ -140,20 +140,24 @@ impl Plugin for Game {
                 ),
             )
             .with_color(visual::color(0xfff3d6))
-            .with_intensity(1.0),
+            .with_intensity(1.8),
         )
         .build(&mut scene.graph);
         let camera = CameraBuilder::new(BaseBuilder::new().with_name("Câmera"))
             .with_z_near(0.15)
             .with_z_far(1600.0)
             .with_fov(65.0_f32.to_radians())
+            .with_exposure(Exposure::Manual(1.0))
             .build(&mut scene.graph);
         let saved =
             settings::Settings::load(std::path::Path::new("settings.json")).unwrap_or_else(|e| {
                 eprintln!("Preferências recusadas: {e}; usando padrão.");
                 settings::Settings::default()
             });
-        let vehicle = VehicleVisual::new(&mut scene.graph, saved.paint);
+        let mut vehicle = VehicleVisual::new(&mut scene.graph, saved.paint);
+        vehicle
+            .enable_detailed(&mut scene.graph, saved.paint)
+            .map_err(|e| e.into_boxed_dyn_error() as Box<dyn std::error::Error + Send>)?;
         let scene = ctx.scenes.add(scene);
         let hud = TextBuilder::new(
             WidgetBuilder::new()
@@ -238,9 +242,7 @@ impl Plugin for Game {
     }
     fn on_graphics_context_initialized(&mut self, ctx: PluginContext) -> GameResult {
         let graphics = ctx.graphics_context.as_initialized_mut();
-        let mut quality = QualitySettings::low();
-        quality.csm_settings.enabled = self.state.as_ref().is_some_and(|s| s.quality);
-        quality.hdr_settings.use_hdr = false;
+        let quality = visual::lighting::quality(self.state.as_ref().is_some_and(|s| s.quality));
         graphics.renderer.set_quality_settings(&quality)?;
         graphics
             .renderer
@@ -288,6 +290,11 @@ impl Plugin for Game {
                     s.exit_reason = Some("fechamento solicitado pela janela/sistema");
                     ctx.loop_controller.exit();
                 }
+                WindowEvent::KeyboardInput { .. }
+                    if self
+                        .options
+                        .as_ref()
+                        .is_some_and(|o| o.smoke_frames.is_some()) => {}
                 WindowEvent::KeyboardInput { event, .. } => {
                     if let PhysicalKey::Code(key) = event.physical_key {
                         if s.atlas.open {
@@ -339,16 +346,17 @@ impl Plugin for Game {
                                     KeyCode::KeyP => {
                                         s.paint = (s.paint + 1) % 6;
                                         let graph = &mut ctx.scenes[s.scene].graph;
-                                        let new = VehicleVisual::new(graph, s.paint);
+                                        let mut new = VehicleVisual::new(graph, s.paint);
+                                        new.enable_detailed(graph, s.paint).map_err(|e| {
+                                            e.into_boxed_dyn_error()
+                                                as Box<dyn std::error::Error + Send>
+                                        })?;
                                         let old = std::mem::replace(&mut s.vehicle, new);
                                         old.remove(graph);
                                     }
                                     KeyCode::KeyG => {
                                         s.quality = !s.quality;
-                                        let mut q = QualitySettings::low();
-                                        q.csm_settings.enabled = s.quality;
-                                        q.hdr_settings.use_hdr = false;
-                                        q.fxaa = false;
+                                        let q = visual::lighting::quality(s.quality);
                                         ctx.graphics_context
                                             .as_initialized_mut()
                                             .renderer
@@ -384,11 +392,22 @@ impl Plugin for Game {
                 ..Input::default()
             };
         }
-        if self.options.as_ref().is_some_and(|o| o.smoke_drive) {
-            input.throttle = 1.0;
-        }
-        if self.options.as_ref().is_some_and(|o| o.smoke_maneuvers) {
-            input = maneuver_input(s.frames);
+        if let Some(options) = &self.options
+            && options.smoke_frames.is_some()
+        {
+            input = if options.smoke_maneuvers {
+                maneuver_input(s.frames)
+            } else if options.smoke_drive {
+                Input {
+                    throttle: 1.0,
+                    ..Input::default()
+                }
+            } else {
+                Input {
+                    handbrake: true,
+                    ..Input::default()
+                }
+            };
         }
         s.accumulator = (s.accumulator + ctx.dt).min(DT * 5.0);
         while s.accumulator >= DT {
@@ -451,7 +470,13 @@ impl Plugin for Game {
         s.vehicle.update(graph, &view);
         s.scenery.update(graph, view.truck.position);
         if let Some(net) = s.network.as_mut() {
-            let views = net.views();
+            let mut views = net.views();
+            let distance_squared = |position: [f32; 3]| {
+                (Vector3::from(position) - Vector3::from(view.truck.position)).norm_squared()
+            };
+            views.sort_by(|a, b| {
+                distance_squared(a.position).total_cmp(&distance_squared(b.position))
+            });
             let ids = views.iter().map(|v| v.player).collect::<HashSet<_>>();
             let expired = s
                 .remotes
@@ -464,7 +489,7 @@ impl Plugin for Game {
                     visual.remove(graph);
                 }
             }
-            for remote in views {
+            for (rank, remote) in views.into_iter().enumerate() {
                 if s.remotes
                     .get(&remote.player)
                     .is_some_and(|(paint, _)| *paint != remote.paint)
@@ -476,6 +501,13 @@ impl Plugin for Game {
                     .remotes
                     .entry(remote.player)
                     .or_insert_with(|| (remote.paint, VehicleVisual::new(graph, remote.paint)));
+                visual
+                    .detail_range(
+                        graph,
+                        remote.paint,
+                        rank < 2 && distance_squared(remote.position) < 65.0 * 65.0,
+                    )
+                    .map_err(|e| e.into_boxed_dyn_error() as Box<dyn std::error::Error + Send>)?;
                 visual.remote(graph, &remote);
             }
         }
@@ -538,7 +570,7 @@ impl Plugin for Game {
                 view.gear,
                 view.rpm,
                 fps,
-                if s.quality { "sombras" } else { "leve" },
+                if s.quality { "acabamento" } else { "leve" },
                 if view.coupled { "engatado" } else { "solto" },
                 s.scenery.resident_chunks(),
                 status,
@@ -561,7 +593,7 @@ impl Plugin for Game {
                     .map_err(|e| e.into_boxed_dyn_error() as Box<dyn std::error::Error + Send>)?;
             }
             if let Some(path) = self.options.as_ref().and_then(|o| o.report.as_ref()) {
-                let report = serde_json::json!({"platform":std::env::consts::OS,"native":true,"gpu":s.gpu,"frames":s.frames,"elapsed_seconds":s.start.elapsed().as_secs_f64(),"fps":fps,"truck_position":view.truck.position,"wheel_contacts":view.wheels.iter().filter(|w|w.contact).count(),"coupled":view.coupled,"connected":s.network.as_ref().is_some_and(|n|n.connected()),"remotes":s.remotes.len()});
+                let report = serde_json::json!({"camera_position":[eye.x,eye.y,eye.z],"camera_target":[target.x,target.y,target.z],"platform":std::env::consts::OS,"native":true,"gpu":s.gpu,"frames":s.frames,"elapsed_seconds":s.start.elapsed().as_secs_f64(),"fps":fps,"truck_position":view.truck.position,"wheel_contacts":view.wheels.iter().filter(|w|w.contact).count(),"coupled":view.coupled,"connected":s.network.as_ref().is_some_and(|n|n.connected()),"remotes":s.remotes.len()});
                 std::fs::write(
                     path,
                     serde_json::to_vec_pretty(&report).expect("relatório interno"),

@@ -15,14 +15,39 @@ marcos são históricos, não certificações do novo cliente.
 | Física | `truck_sim`, Rapier 0.32, passo fixo de 60 Hz, sem I/O |
 | Regras e protocolo | `game_core`, compartilhado diretamente, sem I/O |
 | Sala multiplayer | `truck_server`, Rust/Tokio, WebSocket LAN |
-| Conteúdo | Geometria procedural própria, low poly, paleta original |
+| Conteúdo | Geometria procedural e GLB próprio, visual estilizado com materiais PBR |
 | Distribuição | Pasta portátil por sistema, cliente e servidor separados |
 
 WebSocket é somente o transporte de rede; não requer navegador. OpenGL foi
 escolhido para alcançar também hardware antigo. Isso não garante ganho de
 FPS: desempenho e compatibilidade precisam ser medidos no executável.
 
-## Acabamento visual do caminhão e conjunto rodante
+## Modelo detalhado e iluminação — 10/11/2026
+
+- GLB próprio fornecido pelo proprietário incorporado sem alterar o arquivo
+  original. Importador limitado (8 MiB, limites de malhas/acessores/triângulos,
+  recusa de recursos externos e formatos não suportados), separação das rodas,
+  normais seletivas e pneus rodoviários próprios com sulcos discretos.
+- Rodas acompanham esterço, rotação e suspensão; para-lamas adaptados à folga.
+  Eixos e hastes existentes preservados; física e colisores não foram alterados.
+- Tangentes válidas corrigem o cálculo de iluminação da geometria procedural.
+  Pintura, metal, borracha e vidro têm materiais distintos; céu/reflexo procedural,
+  HDR, exposição fixa, sol quente e modo G com bloom/sombras de 512. Sem flare
+  de lente ou fachos físicos dos faróis nesta entrega.
+- Modelo detalhado local e até dois remotos próximos (65 m); distantes usam
+  a cabine procedural anterior. LOD com a mesma silhueta ainda pendente.
+- Validação: 75 testes de workspace, Clippy com avisos como erro e build
+  incremental Windows passaram. Inclui recusa de GLB inválido, tangentes,
+  remoção dos nós e folga de pneus em todos os eixos/esterço/compressão.
+  Smokes isolados exibiram materiais e sombras, aproximadamente 15–22 FPS
+  na Intel HD 4000; não são benchmark comparável. Continua necessária redução
+  de custo para essa GPU. Smoke automatizado agora ignora teclado e fixa a
+  entrada para não receber comandos enquanto o usuário digita.
+- Não validado manualmente por pessoas, em Linux ou em sessão LAN nesta
+  entrega. Pack comercial sugerido ainda não comprado/integrado; origem em
+  `docs/CONTENT_LICENSES.md`. Não foi gerado novo pacote de distribuição.
+
+## Acabamento procedural anterior do caminhão e conjunto rodante
 
 - Eixos/diferenciais e hastes de suspensão visíveis ligam as rodas ao chassi,
   acompanhando o movimento sem girar junto com os pneus. Remotos recebem a

@@ -1,5 +1,7 @@
 //! Geometria original portada de `web/src/render` e `web/src/vehicle` (346aced).
 //! Faces planas, paleta compartilhada e lotes por material. Nenhum asset externo.
+mod detailed;
+pub(crate) mod lighting;
 mod vehicle_detail;
 use fyrox::{
     core::{
@@ -26,7 +28,7 @@ use fyrox::{
 use std::collections::BTreeMap;
 use truck_sim::{Pose, Snapshot};
 
-pub const PAINTS: [u32; 6] = [0xd23a2c, 0xe8902c, 0xf0c02e, 0x2f6fd0, 0x93ad5c, 0xe9edf0];
+pub const PAINTS: [u32; 6] = [0x106068, 0xc46c34, 0xecdebe, 0xd23a2c, 0x2f6fd0, 0xe9edf0];
 const FRAME: u32 = 0x474b52;
 const TIRE: u32 = 0x2c2d31;
 const RIM: u32 = 0xe4e7ea;
@@ -35,6 +37,17 @@ pub fn color(c: u32) -> Color {
     Color::opaque((c >> 16) as u8, (c >> 8) as u8, c as u8)
 }
 type V = Vector3<f32>;
+fn vertex(position: V, normal: V) -> StaticVertex {
+    let axis = if normal.y.abs() < 0.95 {
+        V::y()
+    } else {
+        V::x()
+    };
+    let tangent = axis.cross(&normal).normalize();
+    let mut vertex = StaticVertex::from_pos_uv_normal(position, Vector2::zeros(), normal);
+    vertex.tangent = fyrox::core::algebra::Vector4::new(tangent.x, tangent.y, tangent.z, 1.0);
+    vertex
+}
 // Retângulos próprios do circuito piloto; os últimos substituem os anteriores.
 // [x mínimo, x máximo, z mínimo, z máximo], todos exatamente no plano da física.
 const PILOT_PAVEMENT: &[([f32; 4], u32)] = &[
@@ -185,11 +198,7 @@ impl Batch {
         let g = self.parts.entry(c).or_default();
         let base = g.vertices.len() as u32;
         for p in &points {
-            g.vertices.push(StaticVertex::from_pos_uv_normal(
-                *p,
-                Vector2::zeros(),
-                normal,
-            ));
+            g.vertices.push(vertex(*p, normal));
         }
         for i in 1..points.len() - 1 {
             g.triangles.push(TriangleDefinition([
@@ -290,9 +299,7 @@ impl Batch {
             .into_iter()
             .map(|(c, g)| {
                 let material = materials.entry(c).or_insert_with(|| {
-                    let mut material = Material::standard();
-                    material.set_property("diffuseColor", color(c));
-                    MaterialResource::new_embedded(material)
+                    MaterialResource::new_embedded(lighting::finish_material(c))
                 });
                 SurfaceBuilder::new(SurfaceResource::new_embedded(SurfaceData::new(
                     VertexBuffer::new(g.vertices.len(), g.vertices).expect("geometria interna"),
@@ -316,6 +323,7 @@ pub struct VehicleVisual {
     legs: Handle<Node>,
     running_gear: vehicle_detail::RunningGear,
     trailer_gear: vehicle_detail::RunningGear,
+    detailed: Option<detailed::DetailedVisual>,
     remote_position: Option<V>,
     remote_spin: f32,
 }
@@ -408,14 +416,44 @@ impl VehicleVisual {
             legs,
             running_gear: vehicle_detail::RunningGear::new(graph),
             trailer_gear: vehicle_detail::RunningGear::new(graph),
+            detailed: None,
             remote_position: None,
             remote_spin: 0.0,
         }
+    }
+    pub fn enable_detailed(&mut self, graph: &mut Graph, paint: u8) -> anyhow::Result<()> {
+        if self.detailed.is_none() {
+            self.detailed = Some(
+                detailed::DetailedVisual::new(graph, paint)
+                    .map_err(|e| anyhow::anyhow!("GLB incorporado recusado: {e:?}"))?,
+            );
+        }
+        graph[self.truck].set_visibility(false);
+        for h in &self.wheels {
+            graph[*h].set_visibility(false);
+        }
+        Ok(())
+    }
+    pub fn detail_range(&mut self, graph: &mut Graph, paint: u8, near: bool) -> anyhow::Result<()> {
+        if near {
+            self.enable_detailed(graph, paint)?;
+        }
+        if let Some(detailed) = &self.detailed {
+            detailed.visible(graph, near);
+        }
+        graph[self.truck].set_visibility(!near);
+        for h in &self.wheels {
+            graph[*h].set_visibility(!near);
+        }
+        Ok(())
     }
     pub fn update(&self, graph: &mut Graph, s: &Snapshot) {
         graph[self.legs].set_visibility(!s.coupled);
         set_pose(graph, self.truck, s.truck);
         set_pose(graph, self.trailer, s.trailer);
+        if let Some(detailed) = &self.detailed {
+            detailed.update(graph, s.truck, &s.wheels);
+        }
         self.running_gear.update(
             graph,
             s.truck,
@@ -445,6 +483,9 @@ impl VehicleVisual {
         }
     }
     pub fn remove(self, graph: &mut Graph) {
+        if let Some(detailed) = self.detailed {
+            detailed.remove(graph);
+        }
         self.running_gear.remove(graph);
         self.trailer_gear.remove(graph);
         for h in [self.truck, self.trailer]
@@ -490,6 +531,19 @@ impl VehicleVisual {
         let centers = truck_sim::WHEEL_MOUNTS
             .map(|m| V::from(v.position) + q * V::new(m[0], m[1] - 0.4, m[2]));
         self.running_gear.update(graph, truck, &centers, -0.16);
+        if let Some(detailed) = &self.detailed {
+            let wheels = std::array::from_fn::<_, 6, _>(|i| truck_sim::WheelPose {
+                center: centers[i].into(),
+                steering: if i < 2 {
+                    v.steer_mrad as f32 / 1000.0
+                } else {
+                    0.0
+                },
+                rotation: self.remote_spin,
+                contact: true,
+            });
+            detailed.update(graph, truck, &wheels);
+        }
         graph[self.trailer].set_visibility(v.trailer.is_some());
         self.trailer_gear.visible(graph, v.trailer.is_some());
         for h in &self.trailer_wheels {
@@ -797,6 +851,24 @@ mod tests {
             buffer::{VertexAttributeUsage, VertexReadTrait},
         },
     };
+    #[test]
+    fn generated_vertices_have_finite_orthogonal_tangent_frames() {
+        for normal in [
+            V::x(),
+            -V::x(),
+            V::y(),
+            -V::y(),
+            V::z(),
+            -V::z(),
+            V::new(0.2, 0.9, 0.3).normalize(),
+        ] {
+            let v = vertex(V::zeros(), normal);
+            let tangent = v.tangent.xyz();
+            assert!((tangent.norm() - 1.0).abs() < 0.0001);
+            assert!(tangent.dot(&normal).abs() < 0.0001);
+            assert_eq!(v.tangent.w, 1.0);
+        }
+    }
     #[test]
     fn streamed_road_follows_collision_without_holes_or_unbounded_geometry() {
         for chunk in -15..25 {

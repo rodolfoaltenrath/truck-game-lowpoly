@@ -25,6 +25,19 @@ origem e limites em [SERRA_RIO_DO_RASTRO.md](SERRA_RIO_DO_RASTRO.md).
 
 ## Conteúdo incorporado pelas dependências
 
+O arquivo `caminhao_detalhado.glb` foi fornecido pelo proprietário em
+10/11/2026 como criação feita com Claude Code para este projeto. É incorporado
+como conteúdo próprio sob a licença do repositório, conforme essa declaração
+de origem; não foi realizada auditoria independente da geração. O original
+permanece intacto. A adaptação em Rust, pneus rodoviários, céu procedural e
+materiais escalares são código/conteúdo próprios. Não há texturas externas.
+
+O [Low Poly Truck Pack de PHAZAN PRODUCT](https://assetstore.unity.com/packages/3d/vehicles/low-poly-truck-pack-179260)
+está apenas em avaliação: nenhum arquivo do pacote foi incorporado. Se
+comprado, registrar comprovante/licença aplicável e manter os fontes comerciais
+fora do Git público (`assets-src/` e `assets/` são ignorados). O importador
+atual é específico ao GLB próprio; não comprova compatibilidade com esse pack.
+
 | Conteúdo | Origem | Licença |
 |---|---|---|
 | Engine e recursos internos da interface | Fyrox/Fyrox UI 1.0.1, https://github.com/FyroxEngine/Fyrox | MIT, texto em `licenses/FYROX-MIT.txt` |

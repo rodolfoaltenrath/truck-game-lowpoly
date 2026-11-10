@@ -22,6 +22,18 @@ WebSocket é somente o transporte de rede; não requer navegador. OpenGL foi
 escolhido para alcançar também hardware antigo. Isso não garante ganho de
 FPS: desempenho e compatibilidade precisam ser medidos no executável.
 
+## Diretriz de altimetria para a expansão
+
+- Pedido do proprietário em 10/11/2026: preservar o relevo característico dos
+  lugares, com serras e rampas fortes onde cabíveis. Não usar os limites suaves
+  dos protótipos como teto global. Política permanente em
+  [MAPA_SUL.md](docs/MAPA_SUL.md), também referenciada nas instruções dos agentes.
+- Consultar perfis rodoviários e referências altimétricas, adaptar desníveis à
+  compressão 1:20 e validar o conjunto carregado na subida e descida. Dados reais
+  ainda não importados; os relevos atuais e a serra de 5,5% continuam procedurais.
+- Esta etapa altera somente documentação; revisão por diff, sem build ou
+  testes de código. Importação de dados e revisão das rampas seguem pendentes.
+
 ## Serra do Rio do Rastro — trecho inspirado
 
 - Primeiro desvio dirigível original, com aproximadamente 4,8 km, cinco

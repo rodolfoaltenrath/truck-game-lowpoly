@@ -24,6 +24,10 @@ jogo. Não adicionar `legacy/` ao workspace.
 - Conteúdo (modelos, texturas, sons, fontes) só próprio ou com licença que
   permita o uso; registrar origem e licença. Nada de assets de jogos
   comerciais nem de mods derivados deles, nem para teste.
+- Ao expandir o mapa, considerar altimetria regional e perfis das rodovias:
+  preservar serras, vales e rampas íngremes características. Não aplicar um
+  teto genérico de 5,5–7% a todo o mundo. Seguir a política de relevo e escala
+  em `docs/MAPA_SUL.md`; altitudes reais ainda não foram importadas.
 - Limites explícitos em toda entrada de rede/arquivo; recusa tipada.
 - Roadmap atualizado com o que foi entregue, como foi testado e o que falta.
   Não marcar como testado por pessoas o que só passou em teste automatizado.

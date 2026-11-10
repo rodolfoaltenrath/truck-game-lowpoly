@@ -34,6 +34,38 @@ desenhada no atlas com estradas regionais já dirigíveis.
 - Ícones separados para combustível, oficina, descanso e pedágio. Um mesmo
   complexo pode reunir serviços, sem repetir ícones sobrepostos no mapa.
 
+## Altimetria — orientação permanente do proprietário
+
+Em 10/11/2026 o proprietário pediu que a expansão preserve o relevo de cada
+região, incluindo subidas realmente íngremes, evitando transformar toda a rede
+em planos ou ondulações suaves. Essa orientação vale para cada novo corredor.
+
+- Consultar altitudes e perfis ao longo do caminho, não apenas a altitude do
+  centro das cidades. Diferenciar planícies, vales, planaltos e travessias de serra.
+- O [TOPODATA/INPE](https://data.inpe.br/dados/topodata/) oferece altimetria e
+  declividade do terreno como referências possíveis. Antes de incorporar dados,
+  conferir termos, atribuição, cobertura e resolução e registrar a origem.
+  A declividade do terreno não equivale à rampa da estrada: o traçado rodoviário,
+  cortes, aterros, pontes e túneis exigem tratamento próprio.
+- Preservar a identidade dos desníveis com adaptação à escala 1:20. Não manter
+  automaticamente o desnível real inteiro num percurso vinte vezes menor:
+  isso multiplicaria a rampa por vinte. Comprimir altura e extensão de forma
+  coerente, ou reservar maior extensão para um trecho marcante de serra.
+- Definir rampas por trecho, com referência quando disponível e distinção
+  explícita entre medida real e adaptação de jogo. Os limites atuais de 5,5%
+  na serra de demonstração e aproximadamente 7% nos corredores de teste são
+  escolhas provisórias desses protótipos, não um teto para o mapa inteiro.
+- Rampas mais fortes devem exigir marcha reduzida na subida e controle na
+  descida. Validar subida, retomada, frenagem, aderência e passagem do baú com
+  o conjunto carregado, nos dois sentidos, antes de considerar o trecho pronto.
+  Transições de inclinação precisam evitar contato do chassi com a pista.
+- Manter desenho e colisão coerentes, com terreno low poly e carregamento por
+  regiões. Altimetria não exige texturas pesadas nem uma malha excessivamente densa.
+
+Estado: orientação registrada; **nenhum modelo altimétrico real foi importado**.
+Os relevos atuais continuam procedurais. Pesquisa dos perfis, adaptação das
+rampas mais fortes e validação de condução permanecem trabalho de implementação.
+
 ## Cidades
 
 | UF | Cidades propostas |

@@ -6,11 +6,16 @@ física Rapier e servidor Rust. Sem Electron, WebView ou navegador no executáve
 Direção vigente e pendências: [roadmap nativo](ROADMAP_JOGO_NATIVO.md).
 O [mapa do Sul](docs/MAPA_SUL.md), incluindo União da Vitória/Porto União como
 polo inicial multiplayer, tem um primeiro circuito piloto. O executável oferece
-dois pátios de treino, estrada direta e retorno alternativo. O atlas regional
+três pátios de treino (União da Vitória, Porto União e Guarapuava), com saída
+interurbana de aproximadamente 9 km ao norte e retorno alternativo no circuito
+inicial. O atlas regional
 contém as 32 cidades planejadas; os demais corredores ainda não existem em 3D.
 O piloto tem curvas em S, subida e descida de até 14 m, com rampas abaixo de 7%
 e colisão acompanhando a pista. A expansão entre cidades adotará **1:20**;
 veículos, pistas e áreas de manobra permanecem em escala real.
+O corredor norte acrescenta curvas e ondulações, também abaixo de 7% de inclinação.
+Solo e vegetação são carregados em até nove regiões de 400 m; as antigas são
+removidas do cenário. Colisões permanecem disponíveis fora da janela visual.
 
 ## Executar
 
@@ -78,8 +83,10 @@ preferências e posição em uma pasta escolhida, inclusive junto ao executável
 | Direção | A/D / ←/→ |
 | Freio de mão | Espaço |
 | Frete de treino: aceitar/carregar/descarregar | E |
+| Escolher destino no pátio antes de carregar | F |
 | Mapa local / fechar mapa | M |
 | Alternar mapa local e planejamento regional | Tab, com mapa aberto |
+| Visão do corredor / aproximação do circuito | Z, no mapa local |
 | Destino / origem / preferência de rota no atlas regional | ↑/↓ / O / Espaço |
 | Engatar/desengatar próximo e parado | T |
 | Voltar ao pátio e reiniciar o treino | R |
@@ -97,15 +104,18 @@ port. Consulte o roadmap antes de considerar equivalentes os marcos web antigos.
 ## Primeiro frete de treino
 
 Pressione **R** para voltar ao pátio de União da Vitória (também disponível pelo
-mapa). Com cavalo e baú parados na área verde, pressione **E** e aguarde 2 segundos.
+mapa). Com cavalo e baú parados na área verde, escolha Porto União ou Guarapuava
+com **F**, pressione **E** e aguarde 2 segundos.
 Abra **M** para se orientar: saia do pátio para oeste e siga para sul até Porto
-União; o circuito a leste oferece outro caminho. Pare o conjunto na área verde
+União. Para Guarapuava, siga pela estrada ao norte por aproximadamente 9 km.
+O circuito a leste oferece outro caminho no trecho urbano. Pare o conjunto na área verde
 do segundo pátio e pressione **E** para descarregar. Após concluir, E prepara
 o frete inverso, e outro E inicia a carga.
 
 Mover ou desengatar o conjunto durante carga/descarga cancela a operação. O treino
 é local e reinicia ao sair ou usar R; não dá dinheiro nem altera carreira ou estado
-do servidor. Os prédios e bombas ainda são decorativos, sem colisões ou serviços
+do servidor. Ao reabrir, o pátio mais próximo vira origem de um novo treino; carga
+em trânsito não é restaurada. Os prédios e bombas ainda são decorativos, sem colisões ou serviços
 funcionais. O multiplayer continua sincronizando veículos; fretes compartilhados
 e reserva de vagas dependem de implementação autoritativa.
 

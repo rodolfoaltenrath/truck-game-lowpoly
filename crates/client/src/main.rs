@@ -171,6 +171,8 @@ impl Plugin for Game {
         })
         .expect("preferências validadas");
         let current = sim.snapshot();
+        let freight = game_core::pilot::TrainingFreight::from_nearest(observation(&current))
+            .expect("pose inicial validada");
         let options = self.options.as_ref().expect("opções iniciais");
         if let Some(mode) = &options.smoke_map {
             atlas.toggle(ctx.user_interfaces.first());
@@ -191,7 +193,7 @@ impl Plugin for Game {
             camera,
             hud,
             atlas,
-            freight: game_core::pilot::TrainingFreight::default(),
+            freight,
             freight_message: String::new(),
             vehicle,
             scenery,
@@ -279,6 +281,10 @@ impl Plugin for Game {
                                 if key == KeyCode::KeyR {
                                     s.reset_to_hub();
                                     s.atlas.toggle(ctx.user_interfaces.first());
+                                } else if key == KeyCode::KeyF {
+                                    s.cycle_destination();
+                                } else if key == KeyCode::KeyE {
+                                    s.interact_freight();
                                 } else {
                                     s.atlas.key(key, ctx.user_interfaces.first_mut());
                                 }
@@ -308,11 +314,10 @@ impl Plugin for Game {
                                         s.sim.toggle_hitch();
                                     }
                                     KeyCode::KeyE => {
-                                        s.freight_message =
-                                            match s.freight.interact(observation(&s.current)) {
-                                                Ok(()) => String::new(),
-                                                Err(error) => freight_error(error).into(),
-                                            };
+                                        s.interact_freight();
+                                    }
+                                    KeyCode::KeyF => {
+                                        s.cycle_destination();
                                     }
                                     KeyCode::KeyC => s.camera_mode = (s.camera_mode + 1) % 3,
                                     KeyCode::KeyH => s.help = !s.help,
@@ -491,9 +496,15 @@ impl Plugin for Game {
                     ctx.user_interfaces.first_mut(),
                     [view.truck.position[0], view.truck.position[2]],
                 );
+                s.atlas.job(
+                    ctx.user_interfaces.first(),
+                    s.freight.origin().city,
+                    s.freight.destination().city,
+                    &s.freight_message,
+                );
             }
             let help = if s.help {
-                "\nW/S: acelerar / frear / ré   A/D: direção\nEspaço: freio de mão   T: engate   R: voltar ao pátio\nE: frete de treino   M: mapa   C: câmera   P: pintura\nG: sombras   H: ajuda   Esc: sair"
+                "\nW/S: acelerar / frear / ré   A/D: direção\nEspaço: freio de mão   T: engate   R: voltar ao pátio\nE: frete   F: escolher destino no pátio   M: mapa\nC: câmera   P: pintura   G: sombras   H: ajuda   Esc: sair"
             } else {
                 ""
             };
@@ -502,13 +513,14 @@ impl Plugin for Game {
                 .as_ref()
                 .map_or_else(|| "solo".into(), |n| n.status());
             let text = format!(
-                "SUL DO BRASIL · PROTÓTIPO NATIVO\n{:03.0} km/h  |  marcha {}  |  {:04.0} rpm\n{} FPS  ·  {}  ·  reboque {}\n{}\n{}{}",
+                "SUL DO BRASIL · PROTÓTIPO NATIVO\n{:03.0} km/h  |  marcha {}  |  {:04.0} rpm\n{} FPS  ·  {}  ·  reboque {} · {} regiões\n{}\n{}{}",
                 view.speed.abs() * 3.6,
                 view.gear,
                 view.rpm,
                 fps,
                 if s.quality { "sombras" } else { "leve" },
                 if view.coupled { "engatado" } else { "solto" },
+                s.scenery.resident_chunks(),
                 status,
                 s.freight_text(),
                 help
@@ -542,6 +554,18 @@ impl Plugin for Game {
     }
 }
 impl State {
+    fn interact_freight(&mut self) {
+        self.freight_message = match self.freight.interact(observation(&self.current)) {
+            Ok(()) => String::new(),
+            Err(error) => freight_error(error).into(),
+        };
+    }
+    fn cycle_destination(&mut self) {
+        self.freight_message = match self.freight.cycle_destination(observation(&self.current)) {
+            Ok(()) => String::new(),
+            Err(error) => freight_error(error).into(),
+        };
+    }
     fn reset_to_hub(&mut self) {
         let defaults = settings::Settings::default();
         self.sim
@@ -563,7 +587,7 @@ impl State {
         let distance =
             game_core::south::distance(observation(&self.current).truck, target.position);
         let phase = match self.freight.stage() {
-            Stage::Available => "E para aceitar e carregar · mantenha parado na área verde",
+            Stage::Available => "F: destino · E: carregar · mantenha parado na área verde",
             Stage::Loading => "carregando · mantenha o conjunto parado",
             Stage::InTransit => "siga ao outro pátio · E para descarregar",
             Stage::Unloading => "descarregando · mantenha o conjunto parado",
@@ -575,7 +599,9 @@ impl State {
             String::new()
         };
         format!(
-            "TREINO · {} · {:.0} m em linha reta\n{}{} · {} entregas no treino\n{}",
+            "FRETE LOCAL · {} > {} · alvo {} · {:.0} m em linha reta\n{}{} · {} entregas no treino\n{}",
+            game_core::south::CITIES[self.freight.origin().city as usize].name,
+            game_core::south::CITIES[self.freight.destination().city as usize].name,
             game_core::south::CITIES[target.city as usize].name,
             distance,
             phase,
@@ -663,7 +689,11 @@ fn main() -> anyhow::Result<()> {
         Some(event_loop),
         GraphicsContextParams {
             window_attributes: WindowAttributes::default()
-                .with_title("Sul do Brasil — caminhão nativo")
+                .with_title(if options.smoke_frames.is_some() {
+                    "TESTE AUTOMÁTICO · fecha sozinho · Sul do Brasil"
+                } else {
+                    "Sul do Brasil — caminhão nativo"
+                })
                 .with_inner_size(LogicalSize::new(1100.0, 700.0)),
             vsync: true,
             msaa_sample_count: None,

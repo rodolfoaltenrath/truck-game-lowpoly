@@ -9,9 +9,10 @@ O módulo `game_core::south` contém 32 cidades, 47 ligações bidirecionais e
 pedágio. As coordenadas são próprias e esquemáticas; distâncias e pedágios
 não representam geografia, concessões ou viagens reais.
 
-No cenário 3D existe apenas o circuito piloto com curvas e relevo: dois pátios identificados com
-União da Vitória e Porto União, separados por 800 m, com via direta e retorno
-alternativo a leste. Essa escala de exercício é independente do atlas regional.
+No cenário 3D existem o circuito piloto com curvas e relevo, os pátios de União
+da Vitória e Porto União (separados por 800 m), e um corredor norte de aproximadamente
+9 km até um pátio identificado como Guarapuava. O circuito inicial mantém retorno
+alternativo a leste. Esses protótipos são independentes das coordenadas do atlas.
 M abre o mapa local, Tab alterna para o planejamento. Não confundir a rede
 desenhada no atlas com estradas regionais já dirigíveis.
 
@@ -157,6 +158,16 @@ o traçado definitivo em 1:20. O circuito piloto usa distâncias de treino próp
 A expansão regional exigirá ampliar os limites atuais de coordenadas/colisão e
 validar o protocolo, além de carregar terreno e detalhes por regiões. A escala
 escolhida não significa que o mapa inteiro será mantido em memória.
+
+O primeiro corredor usa cerca de 9 km de projeto, equivalentes a aproximadamente
+180 km de referência em 1:20; esse valor não é medição da rodovia real entre as
+cidades. Curvas, veículos e pátios não foram miniaturizados. Os 16 km de terreno
+visual entre z=-6 km e z=10 km cabem nos limites atuais; a expansão completa
+continua exigindo a revisão desses limites.
+
+O terreno visual é gerado/carregado em lotes de 400 m, com no máximo nove
+residentes. As malhas de colisão, muito menores, permanecem carregadas para apoiar
+o conjunto e reboques desacoplados longe da câmera. Não há ganho de FPS medido.
 
 O piloto já possui curvas em S e relevo físico: subida até 14 m seguida de
 descida, com inclinação máxima aproximada de 7%, mantendo os dois pátios planos.

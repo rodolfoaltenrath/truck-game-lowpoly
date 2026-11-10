@@ -103,20 +103,24 @@ impl Simulation {
                 .friction(0.9)
                 .build(),
         );
-        let terrain = game_core::terrain::collision_mesh();
-        colliders.insert(
-            ColliderBuilder::trimesh(
-                terrain
-                    .vertices
-                    .into_iter()
-                    .map(Vector::from_array)
-                    .collect(),
-                terrain.triangles,
-            )
-            .expect("relevo interno válido")
-            .friction(0.9)
-            .build(),
-        );
+        for terrain in [
+            game_core::terrain::collision_mesh(),
+            game_core::terrain::north_collision_mesh(),
+        ] {
+            colliders.insert(
+                ColliderBuilder::trimesh(
+                    terrain
+                        .vertices
+                        .into_iter()
+                        .map(Vector::from_array)
+                        .collect(),
+                    terrain.triangles,
+                )
+                .expect("relevo interno válido")
+                .friction(0.9)
+                .build(),
+            );
+        }
         let truck = bodies.insert(
             RigidBodyBuilder::dynamic()
                 .translation(Vector::new(0.0, 1.6, 0.0))
@@ -489,7 +493,9 @@ mod tests {
     }
     #[test]
     fn hill_collision_supports_all_wheels_on_ascent_crest_and_descent() {
-        for z in [-640.0, -560.0, -400.0, -240.0, -160.0] {
+        for z in [
+            -640.0, -560.0, -400.0, -240.0, -160.0, 800.0, 2500.0, 4100.0, 6500.0, 8200.0,
+        ] {
             let height = game_core::terrain::profile(z).unwrap().height;
             let next = game_core::terrain::profile(z + 1.0).unwrap().height;
             let angle = -(next - height).atan();

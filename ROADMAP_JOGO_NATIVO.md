@@ -22,6 +22,39 @@ WebSocket é somente o transporte de rede; não requer navegador. OpenGL foi
 escolhido para alcançar também hardware antigo. Isso não garante ganho de
 FPS: desempenho e compatibilidade precisam ser medidos no executável.
 
+## Primeiro corredor interurbano e carregamento visual
+
+- Saída norte original até um pátio de Guarapuava a cerca de 9 km do polo,
+  equivalente de projeto a aproximadamente 180 km em 1:20; não é distância
+  rodoviária real verificada. Inclui curvas e ondulações abaixo de 7%, terreno
+  visual e colisão coerentes, e chegada plana para manobrar.
+- Três destinos logísticos no treino local. F escolhe destino antes da carga,
+  parado no pátio; escolha bloqueada durante o transporte. Retorno preserva os
+  dois extremos. Ao reabrir, novo treino parte do pátio mais próximo e descarta
+  o progresso da carga anterior. Não há economia ou fretes autoritativos ainda.
+- Solo, pintura e vegetação em lotes de 400 m, limitado a nove residentes.
+  Remove nós e referências de malha fora da janela; mantém materiais compartilhados,
+  horizonte e pátios pequenos. Não certifica VRAM nem FPS. Colisão permanece
+  residente para apoiar inclusive reboques estacionados fora da janela.
+- Mapa local cobre todo o corredor e mostra os três pátios e o frete escolhido;
+  Z aproxima o circuito urbano. HUD informa regiões residentes. Atlas das
+  32 cidades continua sendo planejamento separado do cenário construído.
+- Esse trecho cabe no limite atual de poses, sem mudança de protocolo.
+  Expansão completa ainda precisa rever coordenadas, colisões e rede.
+- Encerramento de rede agora aguarda brevemente a confirmação de Leave,
+  retransmitindo enquanto necessário antes de desligar o transporte. A simples
+  escrita no socket não garantia que a sala tivesse processado a saída.
+- Validação Windows GNU: **63 testes do workspace e Clippy passaram**. Incluem
+  todas as faixas de terreno, área sem buracos, orçamento por lote, remoção de nós
+  ao atravessar/retornar entre regiões, escolha de destino, retomada perto do pátio,
+  apoio das rodas em dez pontos dos dois relevos e sessão WebSocket com saída.
+- Dois smokes gráficos anunciados antes da abertura: corredor e mapa local,
+  90 quadros cada, na Intel HD 4000/OpenGL 3.3. Capturas inspecionadas, nove regiões
+  carregadas e seis contatos de roda no corredor. Encerramento automático confirmado
+  em `last-session.txt`; título agora identifica explicitamente janelas de teste.
+  Não houve teste humano da viagem completa, benchmark, nova validação Linux ou
+  regeneração do pacote portátil nesta etapa.
+
 ## Diagnóstico de encerramento
 
 - Relato de fechamento durante direção: o proprietário esclareceu que a janela
@@ -190,7 +223,7 @@ seu módulo `traffic` mede tráfego de rede, não implementa veículos de IA.
 | F1 — direção | Testes e smoke passaram; ajustar suspensão/câmera com pessoas |
 | F2 — multiplayer | Transporte e eco validados; sessão LAN com pessoas pendente |
 | F3 — reboques | Baú validado em bancada; outros tipos e engate automático pendentes |
-| F4 — mundo | Atlas de 32 cidades e circuito piloto; corredores 3D e streaming pendentes |
+| F4 — mundo | Atlas, circuito piloto, corredor norte e carregamento visual; demais corredores pendentes |
 | F5 — fretes | Exercício local com carga/entrega; regras autoritativas e economia pendentes |
 | F6 — economia | Pendente, servidor autoritativo |
 | F7 — carreira | Pendente |

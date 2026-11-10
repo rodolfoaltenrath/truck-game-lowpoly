@@ -7,7 +7,7 @@ pub struct Depot {
     pub city: u8,
     pub position: [f32; 2],
 }
-pub const DEPOTS: [Depot; 2] = [
+pub const DEPOTS: [Depot; 3] = [
     Depot {
         city: south::UNION,
         position: [60.0, 0.0],
@@ -15,6 +15,10 @@ pub const DEPOTS: [Depot; 2] = [
     Depot {
         city: south::PORTO,
         position: [60.0, -800.0],
+    },
+    Depot {
+        city: 6,
+        position: [60.0, super::terrain::GUARAPUAVA_Z],
     },
 ];
 pub const DOCK_HALF_SIZE: f32 = 24.0;
@@ -47,6 +51,7 @@ pub enum FreightError {
 pub struct TrainingFreight {
     stage: Stage,
     from: usize,
+    to: usize,
     progress: f32,
     deliveries: u32,
 }
@@ -55,12 +60,28 @@ impl Default for TrainingFreight {
         Self {
             stage: Stage::Available,
             from: 0,
+            to: 1,
             progress: 0.0,
             deliveries: 0,
         }
     }
 }
 impl TrainingFreight {
+    /// Novo treino após retomar o jogo; não restaura uma carga já em trânsito.
+    pub fn from_nearest(o: Observation) -> Result<Self, FreightError> {
+        Self::validate(o)?;
+        let from = (0..DEPOTS.len())
+            .min_by(|&a, &b| {
+                south::distance(o.truck, DEPOTS[a].position)
+                    .total_cmp(&south::distance(o.truck, DEPOTS[b].position))
+            })
+            .expect("catálogo de pátios não vazio");
+        Ok(Self {
+            from,
+            to: if from == 0 { 1 } else { 0 },
+            ..Self::default()
+        })
+    }
     pub fn stage(&self) -> Stage {
         self.stage
     }
@@ -74,7 +95,20 @@ impl TrainingFreight {
         DEPOTS[self.from]
     }
     pub fn destination(&self) -> Depot {
-        DEPOTS[1 - self.from]
+        DEPOTS[self.to]
+    }
+    /// Escolha somente antes de carregar e parado no pátio de origem.
+    pub fn cycle_destination(&mut self, o: Observation) -> Result<(), FreightError> {
+        if self.stage != Stage::Available {
+            return Err(FreightError::Busy);
+        }
+        self.docked(o)?;
+        let mut next = (self.to + 1) % DEPOTS.len();
+        if next == self.from {
+            next = (next + 1) % DEPOTS.len();
+        }
+        self.to = next;
+        Ok(())
     }
     pub fn target(&self) -> Depot {
         if matches!(self.stage, Stage::Available | Stage::Loading) {
@@ -120,7 +154,7 @@ impl TrainingFreight {
             Stage::Available => Stage::Loading,
             Stage::InTransit => Stage::Unloading,
             Stage::Complete => {
-                self.from = 1 - self.from;
+                std::mem::swap(&mut self.from, &mut self.to);
                 Stage::Available
             }
             _ => return Err(FreightError::Busy),
@@ -165,6 +199,28 @@ impl TrainingFreight {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn destination_selection_is_docked_and_locked_while_carrying() {
+        let mut f = TrainingFreight::default();
+        let origin = at(f.origin().position);
+        f.cycle_destination(origin).unwrap();
+        assert_eq!(f.destination().city, 6);
+        f.interact(origin).unwrap();
+        finish(&mut f, origin);
+        assert_eq!(f.cycle_destination(origin), Err(FreightError::Busy));
+        let destination = at(f.destination().position);
+        f.interact(destination).unwrap();
+        finish(&mut f, destination);
+        f.interact(destination).unwrap();
+        assert_eq!(f.origin().city, 6);
+        assert_eq!(f.destination().city, south::UNION);
+        f.cycle_destination(destination).unwrap();
+        assert_eq!(f.destination().city, south::PORTO);
+        assert_eq!(f.cycle_destination(origin), Err(FreightError::OutsideDock));
+        let resumed = TrainingFreight::from_nearest(destination).unwrap();
+        assert_eq!(resumed.origin().city, 6);
+        assert_eq!(resumed.stage(), Stage::Available);
+    }
     fn at(position: [f32; 2]) -> Observation {
         Observation {
             truck: position,

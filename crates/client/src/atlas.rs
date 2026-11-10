@@ -24,6 +24,11 @@ pub struct Atlas {
     regional_canvas: Handle<UiNode>,
     local_canvas: Handle<UiNode>,
     local_player: Handle<VectorImage>,
+    local_roads: Handle<VectorImage>,
+    local_depots: Handle<VectorImage>,
+    local_names: [Handle<Text>; 3],
+    local_job: Handle<Text>,
+    overview: bool,
     local: bool,
     from: u8,
     to: u8,
@@ -47,8 +52,68 @@ fn dot(city: u8, radius: f32) -> Primitive {
         segments: 12,
     }
 }
-fn local_point(position: [f32; 2]) -> Vector2<f32> {
-    Vector2::new(60.0 + position[0] * 1.3, 140.0 - position[1] * 0.32)
+fn local_point(position: [f32; 2], overview: bool) -> Vector2<f32> {
+    if overview {
+        Vector2::new(
+            250.0 + position[0] * 0.6,
+            70.0 + (9100.0 - position[1]) * 0.043,
+        )
+    } else {
+        Vector2::new(60.0 + position[0] * 1.3, 140.0 - position[1] * 0.32)
+    }
+}
+fn local_depots(overview: bool) -> Vec<Primitive> {
+    game_core::pilot::DEPOTS
+        .iter()
+        .filter(|d| overview || d.position[1] < 300.0)
+        .map(|d| Primitive::Circle {
+            center: local_point(d.position, overview),
+            radius: 8.0,
+            segments: 12,
+        })
+        .collect()
+}
+fn local_roads(overview: bool) -> Vec<Primitive> {
+    let lines: [([f32; 2], [f32; 2]); 8] = [
+        ([0.0, -1000.0], [0.0, 9000.0]),
+        ([240.0, -1000.0], [240.0, 200.0]),
+        ([0.0, -1000.0], [240.0, -1000.0]),
+        ([0.0, 200.0], [240.0, 200.0]),
+        ([0.0, 0.0], [60.0, 0.0]),
+        ([0.0, -800.0], [60.0, -800.0]),
+        ([0.0, 9000.0], [60.0, 9000.0]),
+        ([0.0, 9000.0], [0.0, 9200.0]),
+    ];
+    lines
+        .into_iter()
+        .filter(|(a, b)| overview || a[1] < 300.0 || b[1] < 300.0)
+        .flat_map(|(a, mut b)| {
+            if !overview {
+                b[1] = b[1].min(300.0);
+            }
+            let step = if overview {
+                32.0
+            } else {
+                game_core::terrain::STEP
+            };
+            let count = ((a[1] - b[1]).abs() / step).ceil().max(1.0) as usize;
+            let sample = move |i: usize| {
+                let t = i as f32 / count as f32;
+                let p = game_core::terrain::warp([
+                    a[0] + (b[0] - a[0]) * t,
+                    0.0,
+                    a[1] + (b[1] - a[1]) * t,
+                ])
+                .expect("via interna válida");
+                local_point([p[0], p[2]], overview)
+            };
+            (0..count).map(move |i| Primitive::Line {
+                begin: sample(i),
+                end: sample(i + 1),
+                thickness: 4.0,
+            })
+        })
+        .collect()
 }
 fn layer(ui: &mut UserInterface, color: Color, primitives: Vec<Primitive>) -> Handle<VectorImage> {
     VectorImageBuilder::new(
@@ -146,53 +211,8 @@ impl Atlas {
                 ]),
         )
         .build(&mut ui.build_ctx());
-        let local_roads: [([f32; 2], [f32; 2]); 6] = [
-            ([0.0, -1000.0], [0.0, 200.0]),
-            ([240.0, -1000.0], [240.0, 200.0]),
-            ([0.0, -1000.0], [240.0, -1000.0]),
-            ([0.0, 200.0], [240.0, 200.0]),
-            ([0.0, 0.0], [60.0, 0.0]),
-            ([0.0, -800.0], [60.0, -800.0]),
-        ];
-        let roads = layer(
-            ui,
-            Color::opaque(235, 157, 62),
-            local_roads
-                .into_iter()
-                .flat_map(|(a, b)| {
-                    let count = ((a[1] - b[1]).abs() / game_core::terrain::STEP)
-                        .ceil()
-                        .max(1.0) as usize;
-                    let sample = move |i: usize| {
-                        let t = i as f32 / count as f32;
-                        let p = game_core::terrain::warp([
-                            a[0] + (b[0] - a[0]) * t,
-                            0.0,
-                            a[1] + (b[1] - a[1]) * t,
-                        ])
-                        .expect("circuito interno válido");
-                        local_point([p[0], p[2]])
-                    };
-                    (0..count).map(move |i| Primitive::Line {
-                        begin: sample(i),
-                        end: sample(i + 1),
-                        thickness: 5.0,
-                    })
-                })
-                .collect(),
-        );
-        let depots = layer(
-            ui,
-            Color::opaque(121, 187, 132),
-            game_core::pilot::DEPOTS
-                .iter()
-                .map(|d| Primitive::Circle {
-                    center: local_point(d.position),
-                    radius: 9.0,
-                    segments: 12,
-                })
-                .collect(),
-        );
+        let roads = layer(ui, Color::opaque(235, 157, 62), local_roads(true));
+        let depots = layer(ui, Color::opaque(121, 187, 132), local_depots(true));
         let local_player = layer(ui, Color::opaque(94, 221, 237), Vec::new());
         let local_title = text(
             ui,
@@ -200,18 +220,39 @@ impl Atlas {
             14.0,
             930.0,
             21.0,
-            "UNIÃO DA VITÓRIA / PORTO UNIÃO · CIRCUITO PILOTO",
+            "MAPA DIRIGÍVEL · POLO INICIAL E CORREDOR NORTE",
         );
         let local_legend = text(
             ui,
             525.0,
             70.0,
             410.0,
-            18.0,
-            "FRETE DE TREINO\n\nVerde: área de carga\nAzul: seu caminhão\nLaranja: vias dirigíveis\n\nUnião da Vitória: pátio ao norte\nPorto União: pátio ao sul\n\nSaia do pátio para oeste e siga para sul. O circuito a leste oferece um retorno mais longo.\n\nE: aceitar, carregar ou entregar\nPare o cavalo e o baú na área verde por 2 segundos.\n\nR: retornar ao pátio e reiniciar o treino\n\nTab: planejamento das 32 cidades\nM / Esc: voltar ao volante",
+            17.0,
+            "TRÊS PÁTIOS DISPONÍVEIS\n\nVerde: área de carga\nAzul: seu caminhão\nLaranja: vias dirigíveis\n\nGuarapuava: cerca de 9 km ao norte\nUnião da Vitória: polo inicial\nPorto União: 800 m ao sul do polo\n\nF: escolher destino antes da carga\nE: aceitar, carregar ou entregar\nMantenha cavalo e baú engatados e parados na área verde por 2 segundos.\n\nZ: corredor / circuito aproximado\nR: voltar ao polo e reiniciar treino\nTab: planejamento das 32 cidades\nM / Esc: voltar ao volante\n\nCorredor original, distâncias interurbanas em 1:20; não é reprodução cartográfica.",
         );
-        let north = text(ui, 155.0, 118.0, 330.0, 16.0, "União da Vitória · PR");
-        let south = text(ui, 155.0, 375.0, 330.0, 16.0, "Porto União · SC");
+        let label = |ui: &mut UserInterface, index: usize| {
+            let depot = game_core::pilot::DEPOTS[index];
+            let p = local_point(depot.position, true);
+            text(
+                ui,
+                p.x + 14.0,
+                p.y - 8.0,
+                200.0,
+                15.0,
+                CITIES[depot.city as usize].name,
+            )
+        };
+        let north = label(ui, 0);
+        let south = label(ui, 1);
+        let guarapuava = label(ui, 2);
+        let local_job = text(
+            ui,
+            24.0,
+            530.0,
+            480.0,
+            14.0,
+            "F: escolher destino no pátio · E: carregar",
+        );
         let local_canvas = CanvasBuilder::new(
             WidgetBuilder::new()
                 .with_width(980.0)
@@ -224,6 +265,8 @@ impl Atlas {
                     local_legend.transmute(),
                     north.transmute(),
                     south.transmute(),
+                    guarapuava.transmute(),
+                    local_job.transmute(),
                 ]),
         )
         .build(&mut ui.build_ctx());
@@ -252,6 +295,11 @@ impl Atlas {
             regional_canvas: regional_canvas.transmute(),
             local_canvas: local_canvas.transmute(),
             local_player,
+            local_roads: roads,
+            local_depots: depots,
+            local_names: [north, south, guarapuava],
+            local_job,
+            overview: true,
             local: true,
             from: south::UNION,
             to: south::PORTO,
@@ -266,6 +314,29 @@ impl Atlas {
         ui.send(self.root, WidgetMessage::Visibility(self.open));
     }
     pub fn key(&mut self, key: KeyCode, ui: &mut UserInterface) {
+        if self.local && key == KeyCode::KeyZ {
+            self.overview = !self.overview;
+            ui[self.local_roads]
+                .primitives
+                .set_value_and_mark_modified(local_roads(self.overview));
+            ui[self.local_depots]
+                .primitives
+                .set_value_and_mark_modified(local_depots(self.overview));
+            ui[self.local_roads].invalidate_visual();
+            ui[self.local_depots].invalidate_visual();
+            for (&label, depot) in self.local_names.iter().zip(game_core::pilot::DEPOTS) {
+                let p = local_point(depot.position, self.overview);
+                ui.send(
+                    label,
+                    WidgetMessage::DesiredPosition(p + Vector2::new(14.0, -8.0)),
+                );
+                ui.send(
+                    label,
+                    WidgetMessage::Visibility(self.overview || depot.position[1] < 300.0),
+                );
+            }
+            return;
+        }
         if key == KeyCode::Tab {
             self.local = !self.local;
             ui.send(self.local_canvas, WidgetMessage::Visibility(self.local));
@@ -346,11 +417,12 @@ impl Atlas {
     }
     pub fn locate(&self, ui: &mut UserInterface, position: [f32; 2]) {
         self.center(ui);
+        let upper = if self.overview { 9200.0 } else { 300.0 };
         let in_pilot =
-            (-30.0..=280.0).contains(&position[0]) && (-1100.0..=300.0).contains(&position[1]);
+            (-300.0..=400.0).contains(&position[0]) && (-1100.0..=upper).contains(&position[1]);
         let points = if in_pilot {
             vec![Primitive::Circle {
-                center: local_point(position),
+                center: local_point(position, self.overview),
                 radius: 5.0,
                 segments: 12,
             }]
@@ -361,6 +433,15 @@ impl Atlas {
             .primitives
             .set_value_and_mark_modified(points);
         ui[self.local_player].invalidate_visual();
+    }
+    pub fn job(&self, ui: &UserInterface, from: u8, to: u8, message: &str) {
+        ui.send(
+            self.local_job,
+            TextMessage::Text(format!(
+                "Frete: {} > {}\nF: escolher destino no pátio · E: carregar/entregar\n{}",
+                CITIES[from as usize].name, CITIES[to as usize].name, message
+            )),
+        );
     }
     fn center(&self, ui: &UserInterface) {
         let size = ui.screen_size();

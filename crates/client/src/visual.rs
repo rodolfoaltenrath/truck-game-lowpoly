@@ -53,6 +53,9 @@ const PILOT_PAVEMENT: &[([f32; 4], u32)] = &[
     ([36.3, 83.7, -23.7, 23.7], 0x596267),
     ([36.0, 84.0, -824.0, -776.0], 0x89be93),
     ([36.3, 83.7, -823.7, -776.3], 0x596267),
+    ([-6.0, 112.0, 8952.0, 9048.0], 0x596267),
+    ([36.0, 84.0, 8976.0, 9024.0], 0x89be93),
+    ([36.3, 83.7, 8976.3, 9023.7], 0x596267),
 ];
 #[derive(Default)]
 struct Geometry {
@@ -105,16 +108,11 @@ impl Batch {
     }
     // Mosaico horizontal: a pintura substitui o asfalto, sem z-fighting.
     fn ground(&mut self, c: u32, x0: f32, x1: f32, z0: f32, z1: f32) {
-        let mut cuts = vec![z0, z1];
-        if self.terrain {
-            for i in 0..=game_core::terrain::SEGMENTS {
-                let z = game_core::terrain::START + i as f32 * game_core::terrain::STEP;
-                if z > z0 && z < z1 {
-                    cuts.push(z);
-                }
-            }
-            cuts.sort_by(f32::total_cmp);
-        }
+        let cuts = if self.terrain {
+            game_core::terrain::knots_between(z0, z1)
+        } else {
+            vec![z0, z1]
+        };
         for pair in cuts.windows(2) {
             let [z0, z1] = [pair[0], pair[1]];
             self.face(
@@ -509,7 +507,7 @@ pub fn set_pose(graph: &mut Graph, h: Handle<Node>, p: Pose) {
     t.set_rotation(rotation(p.rotation));
 }
 
-fn road_geometry() -> Batch {
+fn road_geometry(z0: f32, z1: f32) -> Batch {
     let mut road = Batch::terrain();
     // Superfícies sem espessura: duas faces por faixa, em vez de 44 por caixa.
     // Acostamento e linhas ocupam intervalos distintos, todos no nível da física.
@@ -517,7 +515,7 @@ fn road_geometry() -> Batch {
         let mut strip = |c, a: f32, b: f32| {
             let x0 = side * a;
             let x1 = side * b;
-            road.pilot_ground(c, x0.min(x1), x0.max(x1), -6000.0, 6000.0);
+            road.pilot_ground(c, x0.min(x1), x0.max(x1), z0, z1);
         };
         strip(0xb9ad70, 7.8, 1600.0);
         strip(0x9a937b, 6.0, 7.8);
@@ -525,90 +523,126 @@ fn road_geometry() -> Batch {
         strip(0xede5ca, 5.22, 5.4);
         strip(0x444b50, 0.09, 5.22);
     }
-    for i in -500..500 {
+    for i in (z0 / 12.0).floor() as i32..(z1 / 12.0).ceil() as i32 {
         let z = i as f32 * 12.0;
-        road.pilot_ground(0xe6bd57, -0.09, 0.09, z, z + 4.0);
-        road.pilot_ground(0x444b50, -0.09, 0.09, z + 4.0, z + 12.0);
+        let paint0 = z.max(z0);
+        let paint1 = (z + 4.0).min(z1);
+        if paint0 < paint1 {
+            road.pilot_ground(0xe6bd57, -0.09, 0.09, paint0, paint1);
+        }
+        let asphalt0 = (z + 4.0).max(z0);
+        let asphalt1 = (z + 12.0).min(z1);
+        if asphalt0 < asphalt1 {
+            road.pilot_ground(0x444b50, -0.09, 0.09, asphalt0, asphalt1);
+        }
     }
     road
 }
 
 pub struct Scenery {
-    chunks: Vec<(f32, Handle<Node>)>,
-    region: Option<(i32, i32)>,
+    chunks: BTreeMap<i32, [Handle<Node>; 2]>,
+    materials: BTreeMap<u32, MaterialResource>,
+    region: Option<i32>,
 }
 impl Scenery {
-    /// Atualiza visibilidade por célula de 200 m, sem reconstruir malhas.
+    /// Mantém até nove lotes residentes. Remove nós e suas referências de malha
+    /// ao sair da janela; a colisão independente continua sustentando reboques.
     pub fn update(&mut self, graph: &mut Graph, position: [f32; 3]) {
-        let region = (
-            (position[0] / 200.0).floor() as i32,
-            (position[2] / 200.0).floor() as i32,
-        );
+        let region = (position[2] / game_core::terrain::CHUNK_LENGTH).floor() as i32;
         if self.region == Some(region) {
             return;
         }
+        let Ok(wanted) = game_core::terrain::desired_chunks(position[2]) else {
+            return;
+        };
         self.region = Some(region);
-        let x = region.0 as f32 * 200.0 + 100.0;
-        let z = region.1 as f32 * 200.0 + 100.0;
-        for &(center, node) in &self.chunks {
-            graph[node].set_visibility(x.abs() <= 1100.0 && (center - z).abs() <= 1000.0);
+        let expired = self
+            .chunks
+            .keys()
+            .copied()
+            .filter(|i| !wanted.contains(i))
+            .collect::<Vec<_>>();
+        for index in expired {
+            if let Some(nodes) = self.chunks.remove(&index) {
+                for node in nodes {
+                    graph.remove_node(node);
+                }
+            }
+        }
+        for index in wanted {
+            if let std::collections::btree_map::Entry::Vacant(entry) = self.chunks.entry(index) {
+                entry.insert(streamed_chunk(index, graph, &mut self.materials));
+            }
         }
     }
+    pub fn resident_chunks(&self) -> usize {
+        self.chunks.len()
+    }
+}
+fn streamed_chunk(
+    chunk: i32,
+    graph: &mut Graph,
+    materials: &mut BTreeMap<u32, MaterialResource>,
+) -> [Handle<Node>; 2] {
+    let base = chunk as f32 * game_core::terrain::CHUNK_LENGTH;
+    let road = road_geometry(base, base + game_core::terrain::CHUNK_LENGTH).build_with_materials(
+        &format!("Terreno {chunk}"),
+        graph,
+        materials,
+    );
+    graph[road].set_cast_shadows(false);
+    let mut b = Batch::terrain();
+    for i in 0..16_i32 {
+        let seed = (chunk * 97 + i * 31).unsigned_abs();
+        let side = if i % 2 == 0 { -1.0 } else { 1.0 };
+        let x = side * (18.0 + (seed % 63) as f32);
+        let z = base + i as f32 * 25.0;
+        if x > 0.0 && ((-1080.0..280.0).contains(&z) || (8920.0..9100.0).contains(&z)) {
+            continue;
+        }
+        let scale = 0.85 + (seed % 5) as f32 * 0.12;
+        b.crown(0x70583e, [x, 0.0, z], 0.3, 3.8 * scale);
+        if seed.is_multiple_of(3) {
+            for tier in 0..3 {
+                b.crown(
+                    0x536d50,
+                    [x, (2.0 + tier as f32 * 1.4) * scale, z],
+                    (2.8 - tier as f32 * 0.65) * scale,
+                    2.9 * scale,
+                );
+            }
+        } else {
+            let tint = if seed.is_multiple_of(4) {
+                0xb6ad59
+            } else {
+                0x879951
+            };
+            b.crown(tint, [x, 2.2 * scale, z], 3.2 * scale, 4.2 * scale);
+        }
+        if i % 4 == 0 {
+            b.cuboid(
+                0xb3b09a,
+                [2.3, 1.2, 1.8],
+                [x + side * 4.0, 0.45, z + 5.0],
+                0.5,
+            );
+        }
+    }
+    let trees = b.build_with_materials(&format!("Vegetação {chunk}"), graph, materials);
+    [road, trees]
 }
 pub fn world(scene: &mut Scene) -> Scenery {
-    let mut chunks = Vec::new();
-    let mut horizon = Batch::terrain();
     let mut materials = BTreeMap::new();
+    let mut horizon = Batch::terrain();
     scene.rendering_options.ambient_lighting_color = color(0xa9b9c7);
     scene.rendering_options.environment_lighting_source =
         fyrox::scene::EnvironmentLightingSource::AmbientColor;
-    let road = road_geometry();
-    let ground = road.build_with_materials(
-        "Solo e rodovia sem sobreposição",
-        &mut scene.graph,
-        &mut materials,
-    );
-    scene.graph[ground].set_cast_shadows(false);
-
-    // Lotes espaciais independentes: o frustum pode descartar trechos inteiros.
-    // Vegetação e morros são decorativos, fora da pista; não simulam colisões.
-    for chunk in -12_i32..18 {
-        let mut b = Batch::terrain();
+    for chunk in -30..50 {
         let base = chunk as f32 * 200.0;
-        for i in 0..8_i32 {
-            let seed = (chunk * 97 + i * 31).unsigned_abs();
-            let side = if i % 2 == 0 { -1.0 } else { 1.0 };
-            let x = side * (18.0 + (seed % 63) as f32);
-            let z = base + i as f32 * 25.0;
-            if x > 0.0 && (-1080.0..280.0).contains(&z) {
-                continue;
-            }
-            let scale = 0.85 + (seed % 5) as f32 * 0.12;
-            b.crown(0x70583e, [x, 0.0, z], 0.3, 3.8 * scale);
-            if seed % 3 == 0 {
-                for tier in 0..3 {
-                    b.crown(
-                        0x536d50,
-                        [x, (2.0 + tier as f32 * 1.4) * scale, z],
-                        (2.8 - tier as f32 * 0.65) * scale,
-                        2.9 * scale,
-                    );
-                }
-            } else {
-                let tint = if seed % 4 == 0 { 0xb6ad59 } else { 0x879951 };
-                b.crown(tint, [x, 2.2 * scale, z], 3.2 * scale, 4.2 * scale);
-            }
-            if i % 4 == 0 {
-                b.cuboid(
-                    0xb3b09a,
-                    [2.3, 1.2, 1.8],
-                    [x + side * 4.0, 0.45, z + 5.0],
-                    0.5,
-                );
-            }
-        }
         for side in [-1.0, 1.0] {
-            let near = if side > 0.0 && (-1200.0..400.0).contains(&base) {
+            let near = if side > 0.0
+                && ((-1200.0..400.0).contains(&base) || (8800.0..9200.0).contains(&base))
+            {
                 580.0
             } else {
                 230.0
@@ -616,12 +650,6 @@ pub fn world(scene: &mut Scene) -> Scenery {
             horizon.crown(0x879578, [side * near, -0.2, base + 90.0], 130.0, 47.0);
             horizon.crown(0x73897b, [side * 440.0, -0.2, base + 30.0], 165.0, 85.0);
         }
-        let node = b.build_with_materials(
-            &format!("Paisagem {chunk}"),
-            &mut scene.graph,
-            &mut materials,
-        );
-        chunks.push((base + 100.0, node));
     }
     horizon.build_with_materials("Horizonte simplificado", &mut scene.graph, &mut materials);
     // Pequeno conjunto rural original, com telhados, portões e beirais legíveis.
@@ -659,7 +687,8 @@ pub fn world(scene: &mut Scene) -> Scenery {
         &mut materials,
     );
     Scenery {
-        chunks,
+        chunks: BTreeMap::new(),
+        materials,
         region: None,
     }
 }
@@ -674,32 +703,58 @@ mod tests {
         },
     };
     #[test]
-    fn road_follows_physics_profile_and_stays_upward_within_geometry_budget() {
-        let road = road_geometry();
-        let mut count = 0;
-        let mut area = 0.0_f64;
-        for part in road.parts.values() {
-            for triangle in &part.triangles {
-                let [a, b, c] = triangle.0.map(|i| part.vertices[i as usize].position);
-                for p in [a, b, c] {
+    fn streamed_road_follows_collision_without_holes_or_unbounded_geometry() {
+        for chunk in -15..25 {
+            let z0 = chunk as f32 * game_core::terrain::CHUNK_LENGTH;
+            let road = road_geometry(z0, z0 + game_core::terrain::CHUNK_LENGTH);
+            let mut count = 0;
+            let mut area = 0.0_f64;
+            for part in road.parts.values() {
+                for triangle in &part.triangles {
+                    let [a, b, c] = triangle.0.map(|i| part.vertices[i as usize].position);
+                    for p in [a, b, c] {
+                        assert!(
+                            (p.y - game_core::terrain::profile(p.z).unwrap().height).abs() < 0.0001
+                        );
+                    }
+                    let normal = (b - a).cross(&(c - a));
                     assert!(
-                        (p.y - game_core::terrain::profile(p.z).unwrap().height).abs() < 0.0001
+                        normal.y > 0.0,
+                        "face invertida ou degenerada no lote {chunk}"
                     );
+                    area += f64::from(normal.y) * 0.5;
+                    count += 1;
                 }
-                let normal = (b - a).cross(&(c - a));
-                assert!(normal.y > 0.0, "face invertida ou degenerada");
-                area += f64::from(normal.y) * 0.5;
-                count += 1;
             }
+            assert!(count < 6000, "lote {chunk}: {count} triângulos");
+            let expected = 3200.0 * f64::from(game_core::terrain::CHUNK_LENGTH);
+            assert!(
+                (area - expected).abs() < expected * 0.00001,
+                "área incompleta no lote {chunk}"
+            );
         }
-        assert!(
-            count < 16000,
-            "pintura e solo excederam o orçamento: {count}"
-        );
-        let expected = 3200.0 * 12000.0;
-        assert!((area - expected).abs() < expected * 0.00001);
     }
-
+    #[test]
+    fn traveling_streams_a_bounded_set_and_removes_old_graph_nodes() {
+        let mut scene = Scene::new();
+        let mut scenery = world(&mut scene);
+        let static_nodes = scene.graph.pair_iter().count();
+        scenery.update(&mut scene.graph, [0.0, 1.6, 0.0]);
+        let original = scenery.chunks[&0];
+        for z in [400.0, 9000.0, -5800.0, 4000.0, 9000.0] {
+            scenery.update(&mut scene.graph, [0.0, 1.6, z]);
+            assert!(scenery.resident_chunks() <= game_core::terrain::MAX_RESIDENT_CHUNKS);
+            assert_eq!(
+                scene.graph.pair_iter().count(),
+                static_nodes + scenery.resident_chunks() * 2
+            );
+        }
+        for node in original {
+            assert!(!scene.graph.is_valid_handle(node));
+        }
+        scenery.update(&mut scene.graph, [0.0, 1.6, 0.0]);
+        assert_eq!(scenery.resident_chunks(), 9);
+    }
     #[test]
     fn rendered_truck_keeps_clearance_for_all_six_tires_at_full_compression() {
         let mut graph = Graph::new();

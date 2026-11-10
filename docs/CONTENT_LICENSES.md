@@ -8,6 +8,8 @@ O port Rust registra a origem no protótipo próprio (commit 346aced).
 O diagrama das 32 cidades, suas coordenadas comprimidas, a rede de ligações,
 o circuito piloto e seus pátios são criações próprias baseadas no planejamento
 de `docs/MAPA_SUL.md`; não incorporam traçado, imagem ou base cartográfica externa.
+O corredor norte até o pátio de Guarapuava e seu relevo também são originais;
+o comprimento nominal de projeto não é uma medida extraída de rodovias reais.
 Nenhum modelo, textura ou som de 18 Wheels of Steel ou de mods derivados
 foi incorporado. As imagens de referência não fazem parte do executável.
 

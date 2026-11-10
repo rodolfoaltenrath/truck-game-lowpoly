@@ -40,7 +40,7 @@ separada; o vão inferior da cabine e os para-lamas respeitam a suspensão.
 | Poucos lados | Cilindros de 6–14 lados conforme o tamanho na tela (rodas 14, tanques 10–12, troncos 6). |
 | Paleta única | Paleta original portada para `crates/client/src/visual.rs`; manter cores coesas. |
 | Sem textura | Cores sólidas por material compartilhado; geometria agrupada em superfícies por cor. |
-| Poucas chamadas de desenho | Peças agrupadas em `Batch`; rodas clonadas compartilham recursos de malha/material. Instâncias de cenário são uma próxima otimização. |
+| Poucas chamadas de desenho | Peças agrupadas em `Batch`; materiais compartilhados e rodas clonadas. Solo e vegetação em até nove lotes de 400 m, com descarte por região e frustum. Instâncias de cenário seguem como próxima otimização. |
 | Escala | 1 unidade = 1 metro. Caminhão ~2,5 m de largura, cabine ~3,3 m de altura total. |
 | Eixos | +Y para cima, +Z para frente, +X para a esquerda (sistema destro). |
 | Gerado por código ou próprio | Sem assets de terceiros sem licença registrada; nada de jogos comerciais nem mods derivados. |

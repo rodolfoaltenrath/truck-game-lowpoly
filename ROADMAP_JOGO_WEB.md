@@ -603,8 +603,13 @@ servidor.
 - Teste `e2e/trailer.spec.ts` passou: reboque acompanha a curva com atraso e
   folga da junta < 0,2 m, desengata, fica parado com o cavalo se afastando e
   volta a engatar sozinho dando ré em linha reta. Suíte completa: 5 testes.
-- **Limitações**: cavalo e reboque não colidem entre si (grupos de colisão),
-  então um L fechado ou ré desalinhada atravessa; junta esférica permite
+- Depois: a **cabine** colide com o reboque (o chassi não, por causa da
+  quinta-roda), impedindo L além de ~100°; tufos de capim (thin instances
+  numa grade em volta da câmera, determinísticos por hash da célula).
+  Teste de suavidade agora mede o cavalo solto numa janela menor (o render
+  por software a ~8 FPS com reboque mascarava a medida): ~0,35–0,46 →
+  ~0,24–0,30 em três execuções.
+- **Limitações**: o chassi do cavalo atravessa o reboque (ré desalinhada); junta esférica permite
   rolagem livre; carga é massa fixa; sem tombamento de carga.
 - **Pendente**: sensação de dirigir com reboque testada por pessoa.
 

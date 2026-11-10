@@ -165,6 +165,9 @@ async function main(): Promise<void> {
     env.follow(truck.root.position);
     cameras.setTrailerLength(hitch.trailer?.spec.length ?? 0);
     cameras.update(dt);
+    if (scene.activeCamera) {
+      track.updateGrass(scene.activeCamera.position);
+    }
 
     lastTelemetry = truck.telemetry();
     lastHitch = hitch.status();

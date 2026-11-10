@@ -13,6 +13,7 @@ import type RAPIER from "@dimforge/rapier3d-compat";
 import { chamferBox, facetedCylinder, paint, paintFacesVaried } from "../render/geometry";
 import { PALETTE } from "../render/palette";
 import type { TruckPose } from "../vehicle/truck";
+import { GrassField } from "./grass";
 import { buildScenery } from "./scenery";
 
 type Rapier = typeof RAPIER;
@@ -30,6 +31,8 @@ export interface TestTrack {
   captureCurrent(): void;
   /** Copia física → malhas dos objetos móveis, interpolando. */
   syncVisuals(alpha: number): void;
+  /** Reposiciona os tufos de capim em volta da câmera. */
+  updateGrass(camera: Vector3): void;
 }
 
 interface DynamicProp {
@@ -265,6 +268,15 @@ export function buildTestTrack(
     },
   });
 
+  // --- Tufos de capim perto da câmera --------------------------------------------
+  const grassField = new GrassField(scene, {
+    radius: 55,
+    cell: 1.4,
+    density: 0.7,
+    height: terrainHeight,
+    allowed: (x, z) => distanceToOval(x, z) > ROAD_WIDTH / 2 + 1,
+  });
+
   // Tudo que esta pista criou e não se move tem a matriz congelada.
   const moving = new Set<Mesh>(props.map((p) => p.mesh));
   for (const mesh of scene.meshes.slice(firstMesh)) {
@@ -282,6 +294,9 @@ export function buildTestTrack(
 
   return {
     spawn: { p: [0, 1.6, -80], q: [0, 0, 0, 1] },
+    updateGrass(camera: Vector3) {
+      grassField.update(camera);
+    },
     storePrevious() {
       for (const p of props) {
         p.prevPos.copyFrom(p.currPos);

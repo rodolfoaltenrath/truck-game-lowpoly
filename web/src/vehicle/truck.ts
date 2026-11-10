@@ -9,7 +9,7 @@ import {
 } from "@babylonjs/core";
 import type RAPIER from "@dimforge/rapier3d-compat";
 import type { DriveInput } from "../input";
-import { TRUCK_GROUPS } from "../physics/groups";
+import { CAB_GROUPS, TRUCK_GROUPS } from "../physics/groups";
 import { PALETTE } from "../render/palette";
 import { Drivetrain, type DrivetrainSpec } from "./drivetrain";
 import { buildTruckModel, TAIL_DIM } from "./truckModel";
@@ -189,7 +189,7 @@ export class Truck {
         .setTranslation(...spec.cabOffset)
         .setMass(spec.cabMass)
         .setFriction(0.6)
-        .setCollisionGroups(TRUCK_GROUPS),
+        .setCollisionGroups(CAB_GROUPS),
       this.body,
     );
 

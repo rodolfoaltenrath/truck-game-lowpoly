@@ -688,6 +688,36 @@ servidor.
   usa teletransporte para verificar residência, não prova viagem contínua
   de 10 km entre os povoados nem desempenho de streaming assíncrono.
 
+### 10/11/2026 — Correção de ruído visual e custo gráfico
+
+- Após relato do proprietário de “chuvisco” na imagem inteira e travadas,
+  retirado o SSAO da qualidade alta e mantido FXAA em todos os presets.
+  Reduzidos os mapas de sombra (512/1024/2048), a textura do glow e os
+  buffers do pipeline (sem HDR). Adicionado normal bias nas sombras e
+  aumentado o plano próximo das câmeras de 0,1 para 0,3 m.
+- Chão do mapa experimental reconstruído como mosaico de faces: asfalto e
+  faixas substituem as áreas anteriores, sem planos separados por 1–2 cm
+  disputando profundidade à distância. Geração direta de vértices, sem
+  criar e fundir uma malha temporária para cada faixa.
+- Resolução interna limitada por preset e adaptada ao tempo real de quadro;
+  a interface mantém a resolução original. O contador de FPS passou a usar
+  o tempo real, corrigindo o piso incorreto de 10 FPS causado pelo limite
+  de 100 ms usado na simulação. `__game.graphics()` expõe resolução, escala,
+  preset e tamanho do mapa de sombras para diagnóstico no modo dev.
+- **Validação**: TypeScript/Biome e build de produção passaram. Playwright
+  no Edge/SwiftShader, janela 1280 × 720: direção, streaming de regiões e
+  novo teste geométrico passaram (três cenários). O teste geométrico verifica
+  cobertura integral, ausência de áreas sobrepostas e orientação das faces.
+- Medição exploratória no mesmo cenário parado, preset médio, janela
+  1280 × 720, Edge/SwiftShader: após dez quadros iniciais, 60 intervalos de
+  requestAnimationFrame deram mediana de 354,8 → 52,0 ms e percentil 95
+  de 424,9 → 177,1 ms. A resolução interna é adaptativa na versão nova:
+  o ganho inclui redução de resolução e efeitos. Capturas antes/depois
+  inspecionadas; não prova ausência de granulação percebida pelo proprietário
+  nem 60 FPS em GPU real. Resoluções menores deixam o cenário menos nítido.
+- **Pendente**: confirmação do proprietário após recarregar, medição em GPU
+  real e ajuste dos orçamentos conforme o hardware; F4 continua parcial.
+
 ### Próximo passo
 
 Validar direção e multiplayer com pessoas em LAN; na F4, definir o formato

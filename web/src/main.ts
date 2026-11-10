@@ -159,7 +159,9 @@ async function main(): Promise<void> {
   let lastNet: NetStatus | null = null;
 
   engine.runRenderLoop(() => {
-    const dt = Math.min(engine.getDeltaTime() / 1000, 0.1);
+    const frameSeconds = engine.getDeltaTime() / 1000;
+    const dt = Math.min(frameSeconds, 0.1);
+    graphics.update(frameSeconds);
 
     const actions = input.readActions();
     if (actions.reset) {
@@ -237,14 +239,17 @@ async function main(): Promise<void> {
     }
     hud.setHitch(lastHitch);
     hud.update(
-      dt,
+      frameSeconds,
       lastTelemetry,
       `${netLabel(session, lastNet)} · ${engine.description.includes("WebGPU") ? "WebGPU" : "WebGL"} · gráficos ${graphics.quality} · câmera ${cameras.mode}`,
     );
     scene.render();
   });
 
-  window.addEventListener("resize", () => engine.resize());
+  window.addEventListener("resize", () => {
+    graphics.resize();
+    engine.resize();
+  });
   loading.classList.add("hidden");
   canvas.focus();
 
@@ -266,6 +271,7 @@ async function main(): Promise<void> {
       toggleCouple: () => hitch.toggle(),
       renderPosition: () => truck.root.position.asArray(),
       meshCount: () => scene.meshes.length,
+      graphics: () => graphics.status(),
       world: () => regions?.status() ?? null,
       setInterpolation: (on: boolean) => {
         interpolate = on;

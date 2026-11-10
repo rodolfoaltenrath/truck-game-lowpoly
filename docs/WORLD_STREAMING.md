@@ -11,6 +11,11 @@ usam piso, mantendo as bordas consistentes. O cliente consulta a mesma
 implementação em WASM, cria as regiões que entram e remove malhas e
 colisores das que saem, antes do próximo passo de física.
 
+O chão visual é um mosaico de faces sem sobreposição: asfalto e faixas
+recortam a área do capim em vez de criar planos separados por centímetros.
+Uma única malha por região reúne essas faces e os prédios, evitando a
+disputa de profundidade que fazia superfícies distantes piscarem.
+
 Reboques soltos preservam sua própria janela: nove regiões por área de
 interesse, no máximo 36 considerando o caminhão e três reboques. As janelas
 sobrepostas compartilham recursos. Assim, abandonar um reboque longe não o

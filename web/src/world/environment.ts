@@ -49,10 +49,11 @@ export function buildEnvironment(scene: Scene): Environment {
   sun.shadowFrustumSize = 80;
   sun.shadowMinZ = 1;
   sun.shadowMaxZ = 320;
-  const shadows = new ShadowGenerator(2048, sun);
+  const shadows = new ShadowGenerator(1024, sun);
   shadows.usePercentageCloserFiltering = true;
   shadows.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
   shadows.bias = 0.0015;
+  shadows.normalBias = 0.03;
   shadows.darkness = 0.35;
 
   buildSky(scene);

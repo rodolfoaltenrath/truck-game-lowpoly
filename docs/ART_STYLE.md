@@ -54,11 +54,21 @@ Traços a perseguir:
 
 | Qualidade | O que liga |
 |---|---|
-| baixa | tons ACES, sombra 1024 |
-| média (padrão) | + FXAA, brilho nas luzes (glow), sombra 2048 |
-| alta | + bloom, MSAA 4x, oclusão de ambiente (SSAO), sombra filtrada alta |
+| baixa | tons ACES, FXAA, sombra 512, imagem até 800 × 450 |
+| média (padrão) | + brilho nas luzes (glow), sombra 1024, imagem até 960 × 540 |
+| alta | + bloom e MSAA 4x, sombra 2048, imagem até 1600 × 900 |
 
 Tecla **G** troca; a escolha fica salva no navegador.
+
+FXAA fica ativo em todos os presets. O brilho usa uma textura de 1/4 da
+resolução; o pipeline usa buffers de cor sem HDR. SSAO foi retirado por seu
+custo e pela possível granulação. Se a média do tempo de quadro passar de
+40 ms, a resolução interna cai gradualmente; após dez segundos abaixo de
+22 ms, pode recuperar um nível. A interface continua na resolução da tela.
+
+Superfícies horizontais do mapa experimental formam um mosaico no mesmo
+plano: capim, asfalto e pintura substituem faces, sem planos quase
+sobrepostos. Isso evita disputa de profundidade (z-fighting) nas estradas.
 
 ## Próximos passos de arte
 

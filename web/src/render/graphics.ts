@@ -6,7 +6,6 @@ import {
   type Mesh,
   type Scene,
   type ShadowGenerator,
-  SSAO2RenderingPipeline,
 } from "@babylonjs/core";
 
 export type Quality = "baixa" | "média" | "alta";
@@ -15,21 +14,24 @@ const STORAGE_KEY = "graficos";
 
 /**
  * Pós-processamento do estilo: tons ACES, contraste, vinheta leve, brilho
- * nas luzes (faróis, lanternas, sol) e oclusão de ambiente na qualidade alta.
+ * nas luzes (faróis, lanternas, sol), com resolução limitada pelo tempo de quadro.
  */
 export class Graphics {
   quality: Quality;
   private readonly pipeline: DefaultRenderingPipeline;
   private readonly glow: GlowLayer;
-  private ssao: SSAO2RenderingPipeline | null = null;
+  private frameSeconds = 0;
+  private frameCount = 0;
+  private recoverySeconds = 0;
+  private adaptiveScale = 1;
 
   constructor(
     private readonly scene: Scene,
-    private readonly cameras: Camera[],
+    cameras: Camera[],
     private readonly shadows: ShadowGenerator,
     glowMeshes: Mesh[],
   ) {
-    this.pipeline = new DefaultRenderingPipeline("main", true, scene, cameras);
+    this.pipeline = new DefaultRenderingPipeline("main", false, scene, cameras);
     const ip = this.pipeline.imageProcessing;
     ip.toneMappingEnabled = true;
     ip.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES;
@@ -44,7 +46,7 @@ export class Graphics {
     this.pipeline.bloomKernel = 48;
     this.pipeline.bloomScale = 0.5;
 
-    this.glow = new GlowLayer("glow", scene, { mainTextureRatio: 0.5, blurKernelSize: 48 });
+    this.glow = new GlowLayer("glow", scene, { mainTextureRatio: 0.25, blurKernelSize: 32 });
     this.glow.intensity = 0.7;
     for (const m of glowMeshes) {
       this.glow.addIncludedOnlyMesh(m);
@@ -65,31 +67,68 @@ export class Graphics {
     this.apply();
   }
 
+  /** Usa o tempo real, antes do limite de tempo aplicado à simulação. */
+  update(seconds: number): void {
+    if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 2) return;
+    this.frameSeconds += seconds;
+    this.frameCount++;
+    if (this.frameSeconds < 1 || this.frameCount < 5) return;
+    const average = this.frameSeconds / this.frameCount;
+    if (average > 0.04) {
+      this.adaptiveScale = Math.min(3, this.adaptiveScale + 0.25);
+      this.recoverySeconds = 0;
+    } else if (average < 0.022) {
+      this.recoverySeconds += this.frameSeconds;
+      if (this.recoverySeconds >= 10) {
+        this.adaptiveScale = Math.max(1, this.adaptiveScale - 0.25);
+        this.recoverySeconds = 0;
+      }
+    } else {
+      this.recoverySeconds = 0;
+    }
+    this.frameSeconds = 0;
+    this.frameCount = 0;
+    this.resize();
+  }
+
+  resize(): void {
+    const engine = this.scene.getEngine();
+    const canvas = engine.getRenderingCanvas();
+    if (!canvas) return;
+    const pixels = canvas.clientWidth * canvas.clientHeight;
+    const budget =
+      this.quality === "alta" ? 1600 * 900 : this.quality === "média" ? 960 * 540 : 800 * 450;
+    const scale = Math.max(this.adaptiveScale, Math.sqrt(pixels / budget), 1);
+    if (Math.abs(engine.getHardwareScalingLevel() - scale) > 0.01) {
+      engine.setHardwareScalingLevel(scale);
+    }
+  }
+
+  status() {
+    const engine = this.scene.getEngine();
+    return {
+      quality: this.quality,
+      scale: engine.getHardwareScalingLevel(),
+      width: engine.getRenderWidth(),
+      height: engine.getRenderHeight(),
+      shadowSize: this.shadows.getShadowMap()?.getSize().width,
+    };
+  }
+
   private apply(): void {
     const q = this.quality;
     this.pipeline.imageProcessingEnabled = true;
-    this.pipeline.fxaaEnabled = q !== "baixa";
+    this.pipeline.fxaaEnabled = true;
     this.pipeline.bloomEnabled = q === "alta";
     this.pipeline.samples = q === "alta" ? 4 : 1;
     this.glow.isEnabled = q !== "baixa";
-    this.shadows.filteringQuality = q === "alta" ? 0 : 1;
-    this.shadows.getShadowMap()?.resize(q === "baixa" ? 1024 : 2048);
-
-    if (q === "alta" && !this.ssao) {
-      this.ssao = new SSAO2RenderingPipeline(
-        "ssao",
-        this.scene,
-        { ssaoRatio: 0.5, blurRatio: 1 },
-        this.cameras,
-      );
-      this.ssao.radius = 1.6;
-      this.ssao.totalStrength = 1.1;
-      this.ssao.samples = 12;
-      this.ssao.maxZ = 250;
-    } else if (q !== "alta" && this.ssao) {
-      this.ssao.dispose();
-      this.ssao = null;
-    }
+    this.shadows.filteringQuality = q === "alta" ? 1 : 2;
+    this.shadows.getShadowMap()?.resize(q === "baixa" ? 512 : q === "média" ? 1024 : 2048);
+    this.adaptiveScale = 1;
+    this.frameSeconds = 0;
+    this.frameCount = 0;
+    this.recoverySeconds = 0;
+    this.resize();
   }
 }
 

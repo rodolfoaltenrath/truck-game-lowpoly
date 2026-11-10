@@ -1,15 +1,9 @@
-import {
-  Color3,
-  Mesh,
-  MeshBuilder,
-  type Scene,
-  StandardMaterial,
-  VertexBuffer,
-} from "@babylonjs/core";
+import { Color3, Mesh, type Scene, StandardMaterial, VertexBuffer } from "@babylonjs/core";
 import type RAPIER from "@dimforge/rapier3d-compat";
 import init, { world_regions } from "../../wasm/pkg/game_core_wasm.js";
 import { chamferBox, paint } from "../render/geometry";
 import { PALETTE } from "../render/palette";
+import { GroundSurface } from "./groundSurface";
 import type { TestTrack } from "./testTrack";
 
 interface Region {
@@ -45,13 +39,7 @@ export async function buildRegionWorld(
     const colliders: RAPIER.Collider[] = [];
     const ox = r.x * 1000;
     const oz = r.z * 1000;
-    const ground = MeshBuilder.CreateGround(
-      `region-${r.x}-${r.z}`,
-      { width: 1000, height: 1000 },
-      scene,
-    );
-    ground.position.set(ox + 500, 0, oz + 500);
-    parts.push(paint(ground, PALETTE.grassA));
+    const ground = new GroundSurface(ox, oz, 1000, PALETTE.grassA);
     colliders.push(
       world.createCollider(
         rapier.ColliderDesc.cuboid(500, 0.5, 500)
@@ -59,17 +47,8 @@ export async function buildRegionWorld(
           .setFriction(0.9),
       ),
     );
-    const surface = (
-      x: number,
-      z: number,
-      width: number,
-      depth: number,
-      color: Color3,
-      y = 0.02,
-    ) => {
-      const mesh = MeshBuilder.CreateGround("region-surface", { width, height: depth }, scene);
-      mesh.position.set(x, y, z);
-      parts.push(paint(mesh, color));
+    const surface = (x: number, z: number, width: number, depth: number, color: Color3) => {
+      ground.paint(x, z, width, depth, color);
     };
     const building = (x: number, z: number, width: number, depth: number, height: number) => {
       const mesh = chamferBox("region-building", { width, depth, height, chamfer: 0.2 }, scene);
@@ -88,10 +67,10 @@ export async function buildRegionWorld(
     if (r.road) {
       surface(128, oz + 500, 16, 1000, PALETTE.asphalt);
       for (const side of [-1, 1]) {
-        surface(128 + side * 7, oz + 500, 0.2, 1000, PALETTE.roadLine, 0.03);
+        surface(128 + side * 7, oz + 500, 0.2, 1000, PALETTE.roadLine);
       }
       for (let z = oz + 5; z < oz + 1000; z += 20) {
-        surface(128, z, 0.2, 6, PALETTE.paintYellow, 0.03);
+        surface(128, z, 0.2, 6, PALETTE.paintYellow);
       }
     }
     if (r.town) {
@@ -113,6 +92,7 @@ export async function buildRegionWorld(
       parts.push(paint(roof, PALETTE.paintRed));
       for (const z of [492, 508]) building(174, z, 1, 1, 5.7);
     }
+    parts.push(ground.mesh(`region-ground-${r.x}-${r.z}`, scene));
     // Todas as peças compartilham material: evita criar MultiMaterial por carga.
     for (const part of parts) {
       for (const kind of [VertexBuffer.UVKind, VertexBuffer.UV2Kind, VertexBuffer.TangentKind]) {

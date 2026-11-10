@@ -43,13 +43,13 @@ export class CameraRig {
     private readonly truck: Truck,
   ) {
     this.follow = new UniversalCamera("follow", new Vector3(0, 6, -20), scene);
-    this.follow.minZ = 0.1;
+    this.follow.minZ = 0.3;
     this.follow.maxZ = 3000;
     this.follow.fov = 0.9;
     this.follow.inputs.clear();
 
     this.orbit = new ArcRotateCamera("orbit", -Math.PI / 2, 1.2, 22, Vector3.Zero(), scene);
-    this.orbit.minZ = 0.1;
+    this.orbit.minZ = 0.3;
     this.orbit.maxZ = 3000;
     this.orbit.lowerRadiusLimit = 6;
     this.orbit.upperRadiusLimit = 120;

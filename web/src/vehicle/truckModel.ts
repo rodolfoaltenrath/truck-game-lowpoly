@@ -89,7 +89,53 @@ export function buildTruckModel(
   };
 
   // --- Cabine ---------------------------------------------------------------
-  box(painted, null, CAB.width, CAB.height, CAB.depth, CAB.x, CAB.y, CAB.z, CAB.chamfer);
+  const frontAxleZ = spec.wheels.find((w) => w.steer)?.z ?? 2.55;
+  const archRear = frontAxleZ - spec.wheelRadius - 0.12;
+  const archFront = frontAxleZ + spec.wheelRadius + 0.12;
+  const wheelTop =
+    spec.wheelMountY - Math.max(0, spec.suspensionRest - spec.suspensionTravel) + spec.wheelRadius;
+  const archTop = wheelTop + 0.1;
+  const cabTop = CAB.y + CAB.height / 2;
+  // Parte superior inteira; saia inferior só antes/depois do vão da roda.
+  box(
+    painted,
+    null,
+    CAB.width,
+    cabTop - archTop,
+    CAB.depth,
+    CAB.x,
+    (cabTop + archTop) / 2,
+    CAB.z,
+    CAB.chamfer,
+  );
+  for (const [z0, z1] of [
+    [CAB.z - CAB.depth / 2, archRear],
+    [archFront, CAB_FRONT],
+  ]) {
+    if (z0 === undefined || z1 === undefined || z1 <= z0) continue;
+    box(
+      painted,
+      null,
+      CAB.width,
+      archTop - CAB_BOTTOM,
+      z1 - z0,
+      0,
+      (archTop + CAB_BOTTOM) / 2,
+      (z0 + z1) / 2,
+      0.04,
+    );
+    box(
+      fixed,
+      PALETTE.chassisDark,
+      CAB.width - 0.04,
+      0.16,
+      z1 - z0,
+      0,
+      CAB_BOTTOM + 0.04,
+      (z0 + z1) / 2,
+      0.04,
+    );
+  }
   // Pala de sol sobre o para-brisa.
   box(
     painted,
@@ -102,19 +148,6 @@ export function buildTruckModel(
     CAB_FRONT + 0.08,
     0.04,
   );
-  // Faixa escura na base da cabine (degrau da porta / saia).
-  box(
-    fixed,
-    PALETTE.chassisDark,
-    CAB.width - 0.04,
-    0.16,
-    CAB.depth - 0.04,
-    0,
-    CAB_BOTTOM + 0.04,
-    CAB.z,
-    0.05,
-  );
-
   // Para-brisa e janelas laterais.
   box(glazed, null, CAB.width - 0.34, 0.92, 0.06, 0, CAB.y + 0.4, CAB_FRONT + 0.005, 0.04);
   for (const s of [-1, 1]) {
@@ -170,10 +203,10 @@ export function buildTruckModel(
       PALETTE.chassis,
       0.32,
       0.06,
-      0.45,
+      0.3,
       s * (CAB.width / 2 - 0.12),
       CAB_BOTTOM - 0.28,
-      CAB.z + 0.25,
+      archRear - 0.22,
       0.02,
     );
   }
@@ -231,7 +264,7 @@ export function buildTruckModel(
     );
   }
   // Plataforma atrás da cabine.
-  box(fixed, PALETTE.chassisDark, 1.9, 0.08, 3.9, 0, railY + 0.2, -1.3, 0.02);
+  box(fixed, PALETTE.chassisDark, 1.6, 0.08, 3.9, 0, railY + 0.2, -1.3, 0.02);
   // Quinta-roda.
   const fifth = facetedCylinder("fifth", { diameter: 1.05, height: 0.14, sides: 12 }, scene);
   fifth.position.set(0, railY + 0.3, -1.95);
@@ -250,7 +283,7 @@ export function buildTruckModel(
   // Para-lamas sobre o eixo duplo traseiro e lameiros.
   const rearZ = ((spec.wheels[2]?.z ?? -1.3) + (spec.wheels[4]?.z ?? -2.65)) / 2;
   for (const s of [-1, 1]) {
-    box(fixed, PALETTE.chassisDark, 0.52, 0.07, 2.85, s * 1.05, 0.02, rearZ, 0.03);
+    box(fixed, PALETTE.chassisDark, 0.52, 0.07, 2.85, s * 1.05, wheelTop + 0.09, rearZ, 0.03);
     box(fixed, PALETTE.chassisDark, 0.5, 0.5, 0.03, s * 1.05, -0.3, REAR + 0.15, 0.01);
   }
 

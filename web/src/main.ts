@@ -241,7 +241,7 @@ async function main(): Promise<void> {
     hud.update(
       frameSeconds,
       lastTelemetry,
-      `${netLabel(session, lastNet)} · ${engine.description.includes("WebGPU") ? "WebGPU" : "WebGL"} · gráficos ${graphics.quality} · câmera ${cameras.mode}`,
+      `${netLabel(session, lastNet)} · ${engine.description.includes("WebGPU") ? "WebGPU" : "WebGL"} · gráficos ${graphics.quality}${graphics.reduced ? " (efeitos reduzidos)" : ""} · câmera ${cameras.mode}`,
     );
     scene.render();
   });

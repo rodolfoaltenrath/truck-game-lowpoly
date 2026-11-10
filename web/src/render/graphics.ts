@@ -1,6 +1,7 @@
 import {
   type Camera,
   DefaultRenderingPipeline,
+  Engine,
   GlowLayer,
   ImageProcessingConfiguration,
   type Mesh,
@@ -14,7 +15,7 @@ const STORAGE_KEY = "graficos";
 
 /**
  * Pós-processamento do estilo: tons ACES, contraste, vinheta leve, brilho
- * nas luzes (faróis, lanternas, sol), com resolução limitada pelo tempo de quadro.
+ * nas luzes (faróis, lanternas, sol). Em máquina lenta, reduz efeitos, preservando a resolução.
  */
 export class Graphics {
   quality: Quality;
@@ -22,8 +23,7 @@ export class Graphics {
   private readonly glow: GlowLayer;
   private frameSeconds = 0;
   private frameCount = 0;
-  private recoverySeconds = 0;
-  private adaptiveScale = 1;
+  private economy = 0;
 
   constructor(
     private readonly scene: Scene,
@@ -67,6 +67,10 @@ export class Graphics {
     this.apply();
   }
 
+  get reduced(): boolean {
+    return this.economy > 0;
+  }
+
   /** Usa o tempo real, antes do limite de tempo aplicado à simulação. */
   update(seconds: number): void {
     if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 2) return;
@@ -74,34 +78,17 @@ export class Graphics {
     this.frameCount++;
     if (this.frameSeconds < 1 || this.frameCount < 5) return;
     const average = this.frameSeconds / this.frameCount;
-    if (average > 0.04) {
-      this.adaptiveScale = Math.min(3, this.adaptiveScale + 0.25);
-      this.recoverySeconds = 0;
-    } else if (average < 0.022) {
-      this.recoverySeconds += this.frameSeconds;
-      if (this.recoverySeconds >= 10) {
-        this.adaptiveScale = Math.max(1, this.adaptiveScale - 0.25);
-        this.recoverySeconds = 0;
-      }
-    } else {
-      this.recoverySeconds = 0;
+    if (average > 0.04 && this.economy < 2) {
+      this.economy++;
+      this.applyEffects();
     }
     this.frameSeconds = 0;
     this.frameCount = 0;
-    this.resize();
   }
 
   resize(): void {
     const engine = this.scene.getEngine();
-    const canvas = engine.getRenderingCanvas();
-    if (!canvas) return;
-    const pixels = canvas.clientWidth * canvas.clientHeight;
-    const budget =
-      this.quality === "alta" ? 1600 * 900 : this.quality === "média" ? 960 * 540 : 800 * 450;
-    const scale = Math.max(this.adaptiveScale, Math.sqrt(pixels / budget), 1);
-    if (Math.abs(engine.getHardwareScalingLevel() - scale) > 0.01) {
-      engine.setHardwareScalingLevel(scale);
-    }
+    if (engine.getHardwareScalingLevel() !== 1) engine.setHardwareScalingLevel(1);
   }
 
   status() {
@@ -112,23 +99,31 @@ export class Graphics {
       width: engine.getRenderWidth(),
       height: engine.getRenderHeight(),
       shadowSize: this.shadows.getShadowMap()?.getSize().width,
+      economy: this.economy,
+      renderer: engine instanceof Engine ? engine.getGlInfo().renderer : engine.description,
     };
   }
 
   private apply(): void {
+    this.economy = 0;
+    this.frameSeconds = 0;
+    this.frameCount = 0;
+    this.applyEffects();
+    this.resize();
+  }
+
+  private applyEffects(): void {
     const q = this.quality;
     this.pipeline.imageProcessingEnabled = true;
     this.pipeline.fxaaEnabled = true;
-    this.pipeline.bloomEnabled = q === "alta";
-    this.pipeline.samples = q === "alta" ? 4 : 1;
-    this.glow.isEnabled = q !== "baixa";
+    this.pipeline.bloomEnabled = q === "alta" && this.economy === 0;
+    this.pipeline.samples = q === "alta" && this.economy === 0 ? 4 : 1;
+    this.glow.isEnabled = q !== "baixa" && this.economy === 0;
     this.shadows.filteringQuality = q === "alta" ? 1 : 2;
-    this.shadows.getShadowMap()?.resize(q === "baixa" ? 512 : q === "média" ? 1024 : 2048);
-    this.adaptiveScale = 1;
-    this.frameSeconds = 0;
-    this.frameCount = 0;
-    this.recoverySeconds = 0;
-    this.resize();
+    this.scene.shadowsEnabled = this.economy < 2;
+    this.shadows
+      .getShadowMap()
+      ?.resize(this.economy > 0 || q === "baixa" ? 512 : q === "média" ? 1024 : 2048);
   }
 }
 

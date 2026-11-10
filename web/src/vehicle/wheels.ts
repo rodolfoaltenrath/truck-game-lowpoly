@@ -2,7 +2,7 @@ import {
   Quaternion,
   type Scene,
   type ShadowGenerator,
-  type StandardMaterial,
+  StandardMaterial,
   TransformNode,
   Vector3,
 } from "@babylonjs/core";
@@ -71,6 +71,8 @@ export function buildWheelVisuals(
   material: StandardMaterial,
 ): WheelVisual[] {
   const out: WheelVisual[] = [];
+  const wheelMaterial = scene.getMaterialByName("wheels-matte") ?? material.clone("wheels-matte");
+  if (wheelMaterial instanceof StandardMaterial) wheelMaterial.specularColor.set(0, 0, 0);
   for (const [i, w] of spec.wheels.entries()) {
     const pivot = new TransformNode(`${name}-wheel-pivot-${i}`, scene);
     pivot.parent = root;
@@ -107,8 +109,9 @@ export function buildWheelVisuals(
     }
     const wheel = mergeParts(`${name}-wheel-${i}`, parts);
     wheel.parent = spinner;
-    wheel.material = material;
-    wheel.receiveShadows = true;
+    wheel.material = wheelMaterial;
+    // Faces girando não recebem o próprio mapa de sombras: evita manchas que piscam.
+    wheel.receiveShadows = false;
     shadows.addShadowCaster(wheel);
     out.push({ pivot, spinner });
   }

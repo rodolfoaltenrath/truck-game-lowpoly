@@ -102,9 +102,11 @@ export function buildTrailerModel(
   // Suspensão: bloco sob o chassi sobre os eixos, para-lamas.
   const axleMid = (axleFront + axleRear) / 2;
   const axleSpan = axleFront - axleRear + 1.3;
+  const wheelTop =
+    spec.wheelMountY - Math.max(0, spec.suspensionRest - spec.suspensionTravel) + spec.wheelRadius;
   box(PALETTE.chassisDark, 1.5, 0.36, axleSpan, 0, -0.16, axleMid, 0.03);
   for (const s of [-1, 1]) {
-    box(PALETTE.chassisDark, 0.52, 0.06, axleSpan, s * 1.05, -0.32, axleMid, 0.02);
+    box(PALETTE.chassisDark, 0.52, 0.06, axleSpan, s * 1.05, wheelTop + 0.09, axleMid, 0.02);
     // Protetor lateral entre pés e rodas.
     const gStart = legZ - 0.4;
     const gEnd = axleFront + 0.8;

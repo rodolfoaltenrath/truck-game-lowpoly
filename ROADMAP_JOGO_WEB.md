@@ -718,6 +718,44 @@ servidor.
 - **Pendente**: confirmação do proprietário após recarregar, medição em GPU
   real e ajuste dos orçamentos conforme o hardware; F4 continua parcial.
 
+### 10/11/2026 — Nitidez e interferências nas rodas
+
+- Proprietário confirmou imagem borrada e rodas piscando/deformando após
+  a entrega anterior. Retirada a redução automática de resolução e os
+  limites de pixels por preset: escala 1, com buffer do tamanho CSS do
+  canvas. A adaptação passa a retirar efeitos (glow/bloom/MSAA adicional,
+  depois sombras) sem diminuir a resolução, e sinaliza isso no HUD. G
+  restaura os efeitos do preset seguinte. `__game.graphics()` inclui o
+  renderizador e o nível de economia para diagnóstico.
+- Corrigidas interferências no modelo: vão dianteiro recortado na base
+  da cabine; saia dividida nas extremidades do vão; degrau movido para trás
+  do pneu; plataforma estreitada; para-lamas do caminhão e dos três reboques
+  elevados conforme o limite de compressão da suspensão. A física e as
+  dimensões dos pneus permanecem as mesmas.
+- Rodas com material fosco compartilhado, sem brilho especular e sem
+  receber mapas de sombra em faces girando. Continuam sendo emissores de
+  sombra quando habilitados.
+- **Validação**: TypeScript/Biome e build de produção passaram. Quatro
+  cenários Playwright validados no Edge/SwiftShader: direção, reboque com
+  desengate/reengate, resolução nativa sob carga artificial de CPU e troca
+  de presets/redimensionamento, e teste geométrico de folga nas rodas.
+  O teste geométrico usa raios em amostras até 90% do raio do pneu, nos dois
+  lados, em repouso e com suspensão totalmente comprimida, para o caminhão
+  e os três reboques. Detectou também a plataforma entrando no pneu traseiro;
+  passou após estreitar essa peça.
+- Capturas próximas das rodas paradas e girando foram inspecionadas em
+  1280 × 720 com escala 1. A prova por software continua lenta: na sondagem
+  dessa vista próxima, mediana de 154 ms após dez quadros iniciais, com
+  efeitos reduzidos e sombras desligadas. Não comparar diretamente com as
+  sondagens anteriores (outra câmera e resolução efetiva); não prova ganho
+  de FPS nem ausência de defeito no navegador do proprietário. A máquina
+  reporta Intel HD Graphics 4000; os testes citados forçam SwiftShader, sem
+  demonstrar qual renderizador o navegador do proprietário está usando.
+- **Pendente**: confirmação visual do proprietário após recarregar e
+  medição da fluidez/renderizador no navegador de uso. Não atribuir os
+  defeitos relatados exclusivamente ao hardware; havia interferências
+  verificáveis no modelo e redução excessiva de resolução no código.
+
 ### Próximo passo
 
 Validar direção e multiplayer com pessoas em LAN; na F4, definir o formato

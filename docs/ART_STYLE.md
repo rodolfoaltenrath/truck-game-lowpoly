@@ -54,17 +54,26 @@ Traços a perseguir:
 
 | Qualidade | O que liga |
 |---|---|
-| baixa | tons ACES, FXAA, sombra 512, imagem até 800 × 450 |
-| média (padrão) | + brilho nas luzes (glow), sombra 1024, imagem até 960 × 540 |
-| alta | + bloom e MSAA 4x, sombra 2048, imagem até 1600 × 900 |
+| baixa | tons ACES, FXAA, sombra 512, resolução nativa do canvas |
+| média (padrão) | + brilho nas luzes (glow), sombra 1024, resolução nativa |
+| alta | + bloom e MSAA 4x, sombra 2048, resolução nativa |
 
 Tecla **G** troca; a escolha fica salva no navegador.
 
 FXAA fica ativo em todos os presets. O brilho usa uma textura de 1/4 da
 resolução; o pipeline usa buffers de cor sem HDR. SSAO foi retirado por seu
-custo e pela possível granulação. Se a média do tempo de quadro passar de
-40 ms, a resolução interna cai gradualmente; após dez segundos abaixo de
-22 ms, pode recuperar um nível. A interface continua na resolução da tela.
+custo e pela possível granulação. A resolução interna acompanha o tamanho
+CSS do canvas (escala 1), sem redução automática de pixels. Se a média do
+tempo de quadro passar de 40 ms, primeiro são retirados glow, bloom e MSAA
+adicional, com sombras 512; se persistir, as sombras são desligadas. O HUD
+informa “efeitos reduzidos”. A tecla G restaura os efeitos do preset seguinte;
+o ajuste automático não altera a preferência salva nem fica oscilando.
+
+As rodas usam material fosco compartilhado e não recebem mapas de sombra
+nas faces que giram, para evitar manchas intermitentes. Continuam projetando
+sombras quando o preset as habilita. Cabine, degraus, plataforma e para-lamas
+devem respeitar o volume ocupado pelos pneus, inclusive com a suspensão
+comprimida. O vão dianteiro é recortado na parte inferior da cabine.
 
 Superfícies horizontais do mapa experimental formam um mosaico no mesmo
 plano: capim, asfalto e pintura substituem faces, sem planos quase

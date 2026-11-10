@@ -647,8 +647,50 @@ servidor.
 - **Pendente**: LAN real com dois PCs; sensação dos remotos (atraso,
   suavidade) vista por pessoas.
 
+### 10/11/2026 — F4 parcial: base para mapa grande
+
+- Mapa experimental em `/?world=road&solo`, separado da pista original e
+  de sua posição salva. Terreno plano de 32 × 32 km, dividido em 1024 regiões
+  de 1 × 1 km; conteúdo inicial em um corredor reto de 12 km, com volumes
+  de dois povoados (Campo Dourado e Vale Claro) e um posto intermediário.
+  Geometria e nomes originais, paleta existente; sem assets externos.
+- `game_core::world` seleciona as nove regiões próximas por área de interesse,
+  incluindo coordenadas negativas e bordas. Recusas tipadas para coordenadas
+  não finitas, fora do mapa, âncoras incompletas ou mais de três reboques.
+  A seleção chega ao cliente por WASM; não há regra duplicada em TypeScript.
+- Cliente cria malhas e colisores novos antes da física e remove os que
+  deixam de ser necessários. Reboques soltos preservam seu próprio chão:
+  até 36 regiões no pior caso, compartilhando regiões sobrepostas. Um único
+  material atende às regiões, sem criar MultiMaterial a cada carregamento.
+- Windows: ferramentas locais de build preparadas fora do repo; instruções
+  em `docs/WINDOWS_DEV.md`. `.gitattributes` padroniza LF para o Biome passar
+  também no checkout Windows. Plano de expansão em `docs/WORLD_STREAMING.md`.
+- **Testes executados**: 36 testes do núcleo (cinco novos de mapa) e dois
+  de WebSocket passaram; rustfmt e Clippy do workspace sem avisos; build de
+  produção (incluindo WASM), TypeScript e Biome passaram.
+- Playwright com Edge instalado, janela 1280 × 720 e render por software:
+  mapa, multiplayer e reboque passaram. O teste de mapa dirigiu através de
+  uma borda com seis rodas apoiadas e repetiu doze teletransportes entre
+  povoados, sem crescimento nas contagens de malhas e colisores; regiões
+  intermediárias foram removidas e o chão dos reboques estacionados ficou.
+  O teste antigo de direção atingiu 28,7 km/h no prazo em que exige >30
+  nessa resolução; passou no Edge com janela de 640 × 360, após corrigir
+  também o pedido de favicon ausente que gerava 404 no console. Chromium
+  Playwright não pôde ser baixado nesta máquina (timeouts); não declarar
+  equivalência entre browsers nem desempenho em GPU real. Foram quatro
+  cenários E2E validados; a suíte completa não foi executada nesta sessão.
+- **Limitações e pendências**: geração síncrona local, terreno plano,
+  estrada reta, prédios de teste; sem splines, heightmap, CLI `world_tools`,
+  formato de arquivos, pacotes/hash/download assíncrono, vegetação ou LOD
+  neste mapa. Sem negociação de mapa na rede: todos devem usar o mesmo mapa.
+  F4 não concluída; faltam viagem completa e medidas de travadas/FPS em GPU
+  real, além de validação por pessoas. O teste automatizado de ida e volta
+  usa teletransporte para verificar residência, não prova viagem contínua
+  de 10 km entre os povoados nem desempenho de streaming assíncrono.
+
 ### Próximo passo
 
-Teste do proprietário: duas abas (ou dois PCs na LAN) com o servidor
-rodando. Depois, F4 (primeiro mundo de verdade) ou F5 (fretes), conforme a
-prioridade dele.
+Validar direção e multiplayer com pessoas em LAN; na F4, definir o formato
+de estradas/relevo/prefabs e implementar `world_tools`, curvas e relevo
+antes de ampliar o conteúdo. Depois, pacotes por região, fila assíncrona e
+LOD, medindo o orçamento por quadro. F5 permanece pendente.

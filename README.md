@@ -10,6 +10,7 @@ Plano completo: [ROADMAP_JOGO_WEB.md](ROADMAP_JOGO_WEB.md).
 
 Requisitos: Rust (rustup), `gcc`, Node 24 + pnpm e
 `cargo install wasm-bindgen-cli --version 0.2.130`.
+No ambiente Windows desta máquina, consultar [configuração local](docs/WINDOWS_DEV.md).
 
 ```
 # terminal 1: sala do multiplayer
@@ -24,6 +25,11 @@ Cada aba do navegador é um jogador. Outros PCs da rede local abrem
 Parâmetros de URL: `?solo` (sem rede), `?servidor=ws://host:39100`,
 `?sala=nome`, `?webgpu` (tenta WebGPU; padrão WebGL2). Para testar sozinho
 com um "fantasma" seu: `pnpm server --echo`.
+
+Mapa experimental da F4: abrir `http://localhost:5173/?world=road&solo`.
+São 12 km de rodovia entre dois povoados, com terreno e colisores carregados
+por regiões. A pista de testes continua no endereço original.
+Detalhes e próximos passos: [mapa grande](docs/WORLD_STREAMING.md).
 
 ## Controles
 

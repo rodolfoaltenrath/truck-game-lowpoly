@@ -11,12 +11,14 @@ import { Hitch, type HitchStatus } from "./vehicle/hitch";
 import { TRAILERS, Trailer } from "./vehicle/trailer";
 import { Truck, type TruckPose, type TruckTelemetry } from "./vehicle/truck";
 import { buildEnvironment } from "./world/environment";
+import { buildRegionWorld } from "./world/regionWorld";
 import { buildTestTrack } from "./world/testTrack";
 
 const PHYSICS_HZ = 60;
 const FIXED_DT = 1 / PHYSICS_HZ;
 const MAX_STEPS_PER_FRAME = 5;
-const POSE_KEY = "dev:truck-pose";
+const ROAD_WORLD = new URLSearchParams(location.search).get("world") === "road";
+const POSE_KEY = ROAD_WORLD ? "dev:road-truck-pose" : "dev:truck-pose";
 
 async function createEngine(canvas: HTMLCanvasElement): Promise<Engine | WebGPUEngine> {
   const wantWebGpu = new URLSearchParams(location.search).has("webgpu");
@@ -44,9 +46,33 @@ async function main(): Promise<void> {
 
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   world.timestep = FIXED_DT;
-  const track = buildTestTrack(RAPIER, world, scene, shadows);
+  const regions = ROAD_WORLD ? await buildRegionWorld(RAPIER, world, scene) : null;
+  const track = regions ?? buildTestTrack(RAPIER, world, scene, shadows);
 
   const truck = new Truck(RAPIER, world, scene, shadows, restorePose() ?? track.spawn);
+  const updateRegions = () => {
+    if (!regions) return;
+    const p = truck.body.translation();
+    try {
+      regions.update(
+        p.x,
+        p.z,
+        new Float64Array(
+          trailers
+            .filter((t) => t !== hitch.trailer)
+            .flatMap((t) => {
+              const p = t.body.translation();
+              return [p.x, p.z];
+            }),
+        ),
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "OutsideMap") throw error;
+      truck.teleport(track.spawn);
+      if (hitch.trailer) hitch.trailer.teleport(hitch.poseBehindTruck(hitch.trailer));
+      regions.update(track.spawn.p[0], track.spawn.p[2]);
+    }
+  };
 
   // Reboques: o baú nasce engatado; graneleiro e toras ficam estacionados
   // para treinar o engate (dar ré com a quinta-roda sob o pino-rei).
@@ -72,7 +98,7 @@ async function main(): Promise<void> {
         world,
         scene,
         shadows,
-        { p: [x, 1.55, -30], q: [0, 0, 0, 1] },
+        { p: ROAD_WORLD ? [x + 250, 1.55, -4500] : [x, 1.55, -30], q: [0, 0, 0, 1] },
         TRAILERS[kind],
       ),
     );
@@ -81,6 +107,7 @@ async function main(): Promise<void> {
     t.setCoupled(false);
   }
   hitch.couple(startTrailer);
+  updateRegions();
 
   /** Move o cavalo e, se engatado, leva o reboque junto (evita tranco na junta). */
   const placeTruck = (move: () => void) => {
@@ -89,6 +116,7 @@ async function main(): Promise<void> {
     if (t) {
       t.teleport(hitch.poseBehindTruck(t));
     }
+    updateRegions();
   };
   // Multiplayer: conecta à sala (se houver servidor) e desenha os outros.
   const session = await Session.create().catch((e: unknown) => {
@@ -160,6 +188,7 @@ async function main(): Promise<void> {
     accumulator += dt;
     let steps = 0;
     while (accumulator >= FIXED_DT && steps < MAX_STEPS_PER_FRAME) {
+      updateRegions();
       truck.storePrevious();
       track.storePrevious();
       for (const t of trailers) {
@@ -237,6 +266,7 @@ async function main(): Promise<void> {
       toggleCouple: () => hitch.toggle(),
       renderPosition: () => truck.root.position.asArray(),
       meshCount: () => scene.meshes.length,
+      world: () => regions?.status() ?? null,
       setInterpolation: (on: boolean) => {
         interpolate = on;
       },

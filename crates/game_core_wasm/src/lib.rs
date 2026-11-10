@@ -17,6 +17,14 @@ use game_core::{
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
+/// Até nove regiões por área de interesse (caminhão + até três reboques).
+#[wasm_bindgen]
+pub fn world_regions(x: f64, z: f64, anchors: &[f64]) -> Result<String, JsError> {
+    let regions = game_core::world::regions_with_anchors(x, z, anchors)
+        .map_err(|e| JsError::new(&format!("{e:?}")))?;
+    Ok(serde_json::to_string(&regions)?)
+}
+
 fn ms(now_ms: f64) -> u64 {
     if now_ms.is_finite() && now_ms > 0.0 {
         now_ms as u64

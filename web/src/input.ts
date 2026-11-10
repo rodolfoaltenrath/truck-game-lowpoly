@@ -16,6 +16,7 @@ export interface InputActions {
   toggleHelp: boolean;
   nextPaint: boolean;
   nextQuality: boolean;
+  couple: boolean;
 }
 
 const GAMEPAD_DEADZONE = 0.12;
@@ -100,6 +101,7 @@ export class Input {
       toggleHelp: this.pressed.has("KeyH"),
       nextPaint: this.pressed.has("KeyP"),
       nextQuality: this.pressed.has("KeyG"),
+      couple: this.pressed.has("KeyT") || padEdge(1),
     };
     this.pressed.clear();
     return actions;

@@ -9,9 +9,11 @@ import {
 } from "@babylonjs/core";
 import type RAPIER from "@dimforge/rapier3d-compat";
 import type { DriveInput } from "../input";
+import { TRUCK_GROUPS } from "../physics/groups";
 import { PALETTE } from "../render/palette";
 import { Drivetrain, type DrivetrainSpec } from "./drivetrain";
 import { buildTruckModel, TAIL_DIM } from "./truckModel";
+import { applyResistance, buildWheelVisuals, createWheels, WheeledInterpolation } from "./wheels";
 
 type Rapier = typeof RAPIER;
 
@@ -41,6 +43,8 @@ export interface TruckSpec {
   steerSpeedFalloff: number;
   /** Rad/s de giro do volante. */
   steerRate: number;
+  /** Velocidade máxima em ré (m/s). */
+  maxReverseSpeed: number;
   /** Impulso de freio por roda com pedal no fundo. */
   brakeImpulse: number;
   handbrakeImpulse: number;
@@ -77,6 +81,7 @@ export const DEFAULT_TRUCK: TruckSpec = {
   maxSteer: 0.6,
   steerSpeedFalloff: 10,
   steerRate: 1.6,
+  maxReverseSpeed: 8 / 3.6,
   brakeImpulse: 260,
   handbrakeImpulse: 600,
   engineBrakeImpulse: 18,
@@ -121,30 +126,6 @@ export interface TruckPose {
   q: [number, number, number, number];
 }
 
-interface WheelVisual {
-  pivot: TransformNode;
-  spinner: TransformNode;
-}
-
-/** Estado físico usado para interpolar o desenho entre dois passos fixos. */
-interface Snapshot {
-  pos: Vector3;
-  rot: Quaternion;
-  suspension: number[];
-  spin: number[];
-  steer: number[];
-}
-
-function emptySnapshot(wheels: number): Snapshot {
-  return {
-    pos: new Vector3(),
-    rot: new Quaternion(),
-    suspension: new Array<number>(wheels).fill(0),
-    spin: new Array<number>(wheels).fill(0),
-    steer: new Array<number>(wheels).fill(0),
-  };
-}
-
 /** Pedais de teclado são 0/1; isso dá a eles uma subida/descida gradual. */
 const PEDAL_RISE = 3.5;
 const PEDAL_FALL = 6;
@@ -155,12 +136,15 @@ function approach(current: number, target: number, dt: number): number {
   return current + Math.max(-step, Math.min(step, target - current));
 }
 
+/** Ponto de apoio da quinta-roda (topo do prato), no espaço local do cavalo. */
+export const FIFTH_WHEEL_LOCAL = { x: 0, y: 0.29, z: -1.95 };
+
 export class Truck {
   readonly root: TransformNode;
   readonly body: RAPIER.RigidBody;
   private readonly vehicle: RAPIER.DynamicRayCastVehicleController;
   private readonly drivetrain: Drivetrain;
-  private readonly wheelVisuals: WheelVisual[] = [];
+  private readonly interp: WheeledInterpolation;
   private readonly paintMaterial: StandardMaterial;
   private readonly tailMaterial: StandardMaterial;
   private steer = 0;
@@ -169,8 +153,8 @@ export class Truck {
   private reverseMode = false;
   private brakeLightOn = false;
   private readonly spawn: TruckPose;
-  private readonly prev: Snapshot;
-  private readonly curr: Snapshot;
+  /** Freio que o reboque deve aplicar (0..1), com o freio de mão em 1. */
+  trailerBrake = 0;
 
   constructor(
     rapier: Rapier,
@@ -193,7 +177,10 @@ export class Truck {
 
     const [fx, fy, fz] = spec.frameHalfExtents;
     world.createCollider(
-      rapier.ColliderDesc.cuboid(fx, fy, fz).setMass(spec.frameMass).setFriction(0.6),
+      rapier.ColliderDesc.cuboid(fx, fy, fz)
+        .setMass(spec.frameMass)
+        .setFriction(0.6)
+        .setCollisionGroups(TRUCK_GROUPS),
       this.body,
     );
     const [cx, cy, cz] = spec.cabHalfExtents;
@@ -201,64 +188,39 @@ export class Truck {
       rapier.ColliderDesc.cuboid(cx, cy, cz)
         .setTranslation(...spec.cabOffset)
         .setMass(spec.cabMass)
-        .setFriction(0.6),
+        .setFriction(0.6)
+        .setCollisionGroups(TRUCK_GROUPS),
       this.body,
     );
 
-    this.vehicle = world.createVehicleController(this.body);
-    this.vehicle.indexUpAxis = 1;
-    this.vehicle.setIndexForwardAxis = 2;
-    for (const [i, w] of spec.wheels.entries()) {
-      this.vehicle.addWheel(
-        { x: w.x, y: spec.wheelMountY, z: w.z },
-        { x: 0, y: -1, z: 0 },
-        { x: -1, y: 0, z: 0 },
-        spec.suspensionRest,
-        spec.wheelRadius,
-      );
-      this.vehicle.setWheelMaxSuspensionTravel(i, spec.suspensionTravel);
-      this.vehicle.setWheelSuspensionStiffness(i, spec.suspensionStiffness);
-      this.vehicle.setWheelSuspensionCompression(i, spec.suspensionCompression);
-      this.vehicle.setWheelSuspensionRelaxation(i, spec.suspensionRelaxation);
-      this.vehicle.setWheelMaxSuspensionForce(i, 1e7);
-      this.vehicle.setWheelFrictionSlip(i, spec.frictionSlip);
-      this.vehicle.setWheelSideFrictionStiffness(i, spec.sideFrictionStiffness);
-    }
+    this.vehicle = createWheels(world, this.body, spec);
 
     this.root = new TransformNode("truck", scene);
     this.root.rotationQuaternion = new Quaternion();
     const model = buildTruckModel(this.root, spec, scene, shadows);
-    this.wheelVisuals.push(...model.wheels);
     this.paintMaterial = model.paintMaterial;
     this.tailMaterial = model.tailMaterial;
-    this.prev = emptySnapshot(spec.wheels.length);
-    this.curr = emptySnapshot(spec.wheels.length);
-    this.snap();
+    const visuals = buildWheelVisuals("truck", this.root, spec, scene, shadows, model.flatMaterial);
+    this.interp = new WheeledInterpolation(this.body, this.vehicle, spec, this.root, visuals);
+    this.interp.snap();
   }
 
   /** Guarda o estado atual como "anterior". Chamar antes de cada passo de física. */
   storePrevious(): void {
-    copySnapshot(this.curr, this.prev);
+    this.interp.storePrevious();
   }
 
   /** Lê o estado da física. Chamar depois de cada passo de física. */
   captureCurrent(): void {
-    const t = this.body.translation();
-    const r = this.body.rotation();
-    this.curr.pos.set(t.x, t.y, t.z);
-    this.curr.rot.set(r.x, r.y, r.z, r.w);
-    for (let i = 0; i < this.spec.wheels.length; i++) {
-      this.curr.suspension[i] = this.vehicle.wheelSuspensionLength(i) ?? this.spec.suspensionRest;
-      this.curr.spin[i] = this.vehicle.wheelRotation(i) ?? 0;
-      this.curr.steer[i] = this.vehicle.wheelSteering(i) ?? 0;
-    }
+    this.interp.capture();
   }
 
-  /** Sem interpolação: usado ao criar e ao teleportar. */
-  private snap(): void {
-    this.captureCurrent();
-    copySnapshot(this.curr, this.prev);
-    this.syncVisuals(1);
+  /**
+   * Copia física → malhas, interpolando entre o passo anterior e o atual.
+   * @param alpha fração (0..1) do tempo decorrido dentro do passo seguinte.
+   */
+  syncVisuals(alpha: number): void {
+    this.interp.apply(alpha);
   }
 
   /** Troca a cor da cabine. */
@@ -283,7 +245,15 @@ export class Truck {
     const drive = this.reverseMode ? this.brake : this.throttle;
     const pedalBrake = this.reverseMode ? this.throttle : this.brake;
 
-    const force = this.drivetrain.update(dt, drive, speed, spec.wheelRadius, this.reverseMode);
+    // Ré é manobra: corta a tração acima do limite.
+    const reverseCapped = this.reverseMode && speed < -spec.maxReverseSpeed;
+    const force = this.drivetrain.update(
+      dt,
+      reverseCapped ? 0 : drive,
+      speed,
+      spec.wheelRadius,
+      this.reverseMode,
+    );
     const driven = spec.wheels.filter((w) => w.drive).length;
 
     const steerLimit = spec.maxSteer / (1 + Math.abs(speed) / spec.steerSpeedFalloff);
@@ -302,48 +272,14 @@ export class Truck {
       v.setWheelBrake(i, brake);
     }
 
-    // Arrasto aerodinâmico + resistência ao rolamento.
-    const lin = this.body.linvel();
-    const vel = Math.hypot(lin.x, lin.y, lin.z);
-    this.body.resetForces(true);
-    if (vel > 0.05) {
-      const mass = this.body.mass();
-      const magnitude = spec.dragCoefficient * vel * vel + spec.rollingResistance * mass * 9.81;
-      const k = -magnitude / vel;
-      this.body.addForce({ x: lin.x * k, y: lin.y * k, z: lin.z * k }, true);
-    }
+    applyResistance(this.body, spec.dragCoefficient, spec.rollingResistance);
+    this.trailerBrake = input.handbrake ? 1 : pedalBrake;
 
     v.updateVehicle(dt);
     const lightOn = pedalBrake > 0.05 || input.handbrake;
     if (lightOn !== this.brakeLightOn) {
       this.brakeLightOn = lightOn;
       this.tailMaterial.emissiveColor = PALETTE.taillight.scale(lightOn ? 1.6 : TAIL_DIM);
-    }
-  }
-
-  /**
-   * Copia física → malhas, interpolando entre o passo anterior e o atual.
-   * @param alpha fração (0..1) do tempo decorrido dentro do passo seguinte.
-   */
-  syncVisuals(alpha: number): void {
-    const a = this.prev;
-    const b = this.curr;
-    Vector3.LerpToRef(a.pos, b.pos, alpha, this.root.position);
-    if (this.root.rotationQuaternion) {
-      Quaternion.SlerpToRef(a.rot, b.rot, alpha, this.root.rotationQuaternion);
-    }
-
-    const spec = this.spec;
-    const lerp = (x: number, y: number) => x + (y - x) * alpha;
-    for (const [i, wv] of this.wheelVisuals.entries()) {
-      const w = spec.wheels[i];
-      if (!w) {
-        continue;
-      }
-      const len = lerp(a.suspension[i] ?? 0, b.suspension[i] ?? 0);
-      wv.pivot.position.set(w.x, spec.wheelMountY - len, w.z);
-      wv.pivot.rotation.y = lerp(a.steer[i] ?? 0, b.steer[i] ?? 0);
-      wv.spinner.rotation.x = lerp(a.spin[i] ?? 0, b.spin[i] ?? 0);
     }
   }
 
@@ -398,22 +334,12 @@ export class Truck {
     this.throttle = 0;
     this.brake = 0;
     this.reverseMode = false;
-    this.snap();
+    this.interp.snap();
   }
 
   dispose(): void {
     this.world.removeVehicleController(this.vehicle);
     this.world.removeRigidBody(this.body);
     this.root.dispose();
-  }
-}
-
-function copySnapshot(from: Snapshot, to: Snapshot): void {
-  to.pos.copyFrom(from.pos);
-  to.rot.copyFrom(from.rot);
-  for (let i = 0; i < from.spin.length; i++) {
-    to.suspension[i] = from.suspension[i] ?? 0;
-    to.spin[i] = from.spin[i] ?? 0;
-    to.steer[i] = from.steer[i] ?? 0;
   }
 }

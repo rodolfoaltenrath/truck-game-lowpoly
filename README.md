@@ -28,6 +28,8 @@ na mesma porta. `?webgpu` na URL tenta WebGPU (padrão: WebGL2).
 | Trocar câmera | C | Y |
 | Endireitar | R | Back |
 | Olhar em volta | arrastar o mouse (roda = zoom) | — |
+| Engatar reboque | dar ré até encostar | — |
+| Desengatar reboque | T (parado) | B |
 | Trocar pintura | P | — |
 | Qualidade gráfica | G | — |
 | Esconder ajuda | H | — |

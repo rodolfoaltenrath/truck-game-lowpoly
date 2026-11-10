@@ -582,7 +582,34 @@ servidor.
 - **Pendente**: sensação de direção e suavidade confirmadas por pessoa; FPS em GPU real; CI;
   `gcc` para testes Rust nativos.
 
+### 09/11/2026 — F3 (reboque) primeira entrega, na bancada
+
+- Rodas por raycast, modelo e interpolação extraídos para `vehicle/wheels.ts`
+  e compartilhados por cavalo e reboque.
+- Três semirreboques low poly por dados (`vehicle/trailer.ts`): baú 12 m
+  (15,5 t), graneleiro 11 m (22 t, caçamba com carga), toras 12 m (19,5 t,
+  fueiros e toras com pontas claras). Três eixos, pés de apoio, protetores
+  laterais, faixas refletivas, para-choque listrado e lanternas.
+- Engate (`vehicle/hitch.ts`): junta esférica do Rapier entre o prato da
+  quinta-roda e o pino-rei. Engata sozinho ao encostar de ré (como a
+  mandíbula real), dentro de 1 m na horizontal, −0,45..+0,35 m na vertical,
+  35° de alinhamento e até 9 km/h; **T** desengata parado. Reboque solto fica
+  com freio de estacionamento e apoiado nos pés; engatado, freia junto com o
+  cavalo e acende as lanternas.
+- Ré limitada a 8 km/h. Câmera de perseguição se afasta com reboque. HUD
+  mostra reboque e massa; mensagens de engate.
+- Começa com o baú engatado; graneleiro e toras estacionados ao lado da área
+  de testes.
+- Teste `e2e/trailer.spec.ts` passou: reboque acompanha a curva com atraso e
+  folga da junta < 0,2 m, desengata, fica parado com o cavalo se afastando e
+  volta a engatar sozinho dando ré em linha reta. Suíte completa: 5 testes.
+- **Limitações**: cavalo e reboque não colidem entre si (grupos de colisão),
+  então um L fechado ou ré desalinhada atravessa; junta esférica permite
+  rolagem livre; carga é massa fixa; sem tombamento de carga.
+- **Pendente**: sensação de dirigir com reboque testada por pessoa.
+
 ### Próximo passo
 
-Ajustar a direção com o retorno do proprietário no navegador; depois F2
-(extrair `game_core` e ligar dois navegadores pelo servidor).
+Ajustar direção e reboque com o retorno do proprietário no navegador; depois
+F2 (extrair `game_core` e ligar dois navegadores pelo servidor, já com o
+reboque sincronizado).

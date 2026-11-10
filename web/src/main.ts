@@ -5,6 +5,8 @@ import { Hud } from "./hud";
 import { type DriveInput, Input } from "./input";
 import { Graphics } from "./render/graphics";
 import { PAINTS } from "./render/palette";
+import { Hitch, type HitchStatus } from "./vehicle/hitch";
+import { TRAILERS, Trailer } from "./vehicle/trailer";
 import { Truck, type TruckPose, type TruckTelemetry } from "./vehicle/truck";
 import { buildEnvironment } from "./world/environment";
 import { buildTestTrack } from "./world/testTrack";
@@ -43,11 +45,55 @@ async function main(): Promise<void> {
   const track = buildTestTrack(RAPIER, world, scene, shadows);
 
   const truck = new Truck(RAPIER, world, scene, shadows, restorePose() ?? track.spawn);
+
+  // Reboques: o baú nasce engatado; graneleiro e toras ficam estacionados
+  // para treinar o engate (dar ré com a quinta-roda sob o pino-rei).
+  const trailers: Trailer[] = [];
+  const hitch = new Hitch(RAPIER, world, truck, trailers);
+  const startTrailer = new Trailer(
+    RAPIER,
+    world,
+    scene,
+    shadows,
+    { p: [0, 0, 0], q: [0, 0, 0, 1] },
+    TRAILERS.bau,
+  );
+  startTrailer.teleport(hitch.poseBehindTruck(startTrailer));
+  trailers.push(startTrailer);
+  for (const [kind, x] of [
+    ["graneleiro", -58],
+    ["toras", -72],
+  ] as const) {
+    trailers.push(
+      new Trailer(
+        RAPIER,
+        world,
+        scene,
+        shadows,
+        { p: [x, 1.55, -30], q: [0, 0, 0, 1] },
+        TRAILERS[kind],
+      ),
+    );
+  }
+  for (const t of trailers) {
+    t.setCoupled(false);
+  }
+  hitch.couple(startTrailer);
+
+  /** Move o cavalo e, se engatado, leva o reboque junto (evita tranco na junta). */
+  const placeTruck = (move: () => void) => {
+    move();
+    const t = hitch.trailer;
+    if (t) {
+      t.teleport(hitch.poseBehindTruck(t));
+    }
+  };
   const input = new Input(window);
   const cameras = new CameraRig(scene, canvas, truck);
   const hud = new Hud(hudRoot);
-  const glowMeshes = ["truck-headlights", "truck-taillights", "sun-disc"]
-    .map((n) => scene.getMeshByName(n))
+  const glowMeshes = scene.meshes
+    .filter((m) => /^(truck-headlights|truck-taillights|sun-disc|trailer-.*-tails)$/.test(m.name))
+    .map((m) => m)
     .filter((m): m is Mesh => m instanceof Mesh);
   const graphics = new Graphics(scene, scene.cameras.slice(), shadows, glowMeshes);
   let paintIndex = 0;
@@ -56,13 +102,17 @@ async function main(): Promise<void> {
   // Só desligado por testes (comparação com e sem interpolação).
   let interpolate = true;
   let lastTelemetry: TruckTelemetry = truck.telemetry();
+  let lastHitch: HitchStatus = hitch.status();
 
   engine.runRenderLoop(() => {
     const dt = Math.min(engine.getDeltaTime() / 1000, 0.1);
 
     const actions = input.readActions();
     if (actions.reset) {
-      truck.rightInPlace();
+      placeTruck(() => truck.rightInPlace());
+    }
+    if (actions.couple) {
+      hud.flash(hitch.toggle());
     }
     if (actions.nextCamera) {
       cameras.next();
@@ -86,10 +136,17 @@ async function main(): Promise<void> {
     while (accumulator >= FIXED_DT && steps < MAX_STEPS_PER_FRAME) {
       truck.storePrevious();
       track.storePrevious();
+      for (const t of trailers) {
+        t.storePrevious();
+      }
       truck.update(FIXED_DT, input.readDrive());
+      hitch.update(FIXED_DT);
       world.step();
       truck.captureCurrent();
       track.captureCurrent();
+      for (const t of trailers) {
+        t.captureCurrent();
+      }
       accumulator -= FIXED_DT;
       steps++;
     }
@@ -102,10 +159,19 @@ async function main(): Promise<void> {
     const alpha = interpolate ? accumulator / FIXED_DT : 1;
     truck.syncVisuals(alpha);
     track.syncVisuals(alpha);
+    for (const t of trailers) {
+      t.syncVisuals(alpha);
+    }
     env.follow(truck.root.position);
+    cameras.setTrailerLength(hitch.trailer?.spec.length ?? 0);
     cameras.update(dt);
 
     lastTelemetry = truck.telemetry();
+    lastHitch = hitch.status();
+    for (const m of hitch.takeMessages()) {
+      hud.flash(m);
+    }
+    hud.setHitch(lastHitch);
     hud.update(
       dt,
       lastTelemetry,
@@ -129,7 +195,9 @@ async function main(): Promise<void> {
       setInput: (o: Partial<DriveInput> | null) => {
         input.override = o;
       },
-      teleport: (pose?: TruckPose) => truck.teleport(pose),
+      teleport: (pose?: TruckPose) => placeTruck(() => truck.teleport(pose)),
+      hitch: () => lastHitch,
+      toggleCouple: () => hitch.toggle(),
       renderPosition: () => truck.root.position.asArray(),
       meshCount: () => scene.meshes.length,
       setInterpolation: (on: boolean) => {

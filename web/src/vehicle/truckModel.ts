@@ -4,7 +4,7 @@ import {
   type Scene,
   type ShadowGenerator,
   StandardMaterial,
-  TransformNode,
+  type TransformNode,
 } from "@babylonjs/core";
 import { chamferBox, facetedCylinder, mergeParts, paint } from "../render/geometry";
 import { PALETTE } from "../render/palette";
@@ -19,7 +19,8 @@ import type { TruckSpec } from "./truck";
  * y = 0 é o centro do corpo físico (~1,2 m acima do chão em repouso).
  */
 export interface TruckModel {
-  wheels: Array<{ pivot: TransformNode; spinner: TransformNode }>;
+  /** Material de cor por vértice (reaproveitado pelas rodas). */
+  flatMaterial: StandardMaterial;
   paintMaterial: StandardMaterial;
   tailMaterial: StandardMaterial;
 }
@@ -290,61 +291,5 @@ export function buildTruckModel(
   parent(mergeParts("truck-headlights", heads), head, false);
   parent(mergeParts("truck-taillights", tails), tailMaterial, false);
 
-  // --- Rodas -------------------------------------------------------------------
-  const wheels: TruckModel["wheels"] = [];
-  for (const [i, w] of spec.wheels.entries()) {
-    const pivot = new TransformNode(`wheel-pivot-${i}`, scene);
-    pivot.parent = root;
-    pivot.position.set(w.x, spec.wheelMountY - spec.suspensionRest, w.z);
-    const spinner = new TransformNode(`wheel-spin-${i}`, scene);
-    spinner.parent = pivot;
-
-    const parts: Mesh[] = [];
-    const axle = (m: Mesh, color: Color3) => {
-      m.rotation.z = Math.PI / 2;
-      parts.push(paint(m, color));
-      return m;
-    };
-    const outward = Math.sign(w.x) || 1;
-    axle(
-      facetedCylinder(
-        "tire",
-        { diameter: spec.wheelRadius * 2, height: spec.wheelWidth, sides: 14 },
-        scene,
-      ),
-      PALETTE.tire,
-    );
-    axle(
-      facetedCylinder(
-        "rim",
-        { diameter: spec.wheelRadius * 1.2, height: spec.wheelWidth + 0.02, sides: 10 },
-        scene,
-      ),
-      PALETTE.rim,
-    );
-    axle(
-      facetedCylinder("hub", { diameter: 0.26, height: spec.wheelWidth + 0.08, sides: 8 }, scene),
-      PALETTE.hub,
-    );
-    // Porcas no aro: deixam o giro visível.
-    for (let s = 0; s < 6; s++) {
-      const a = (s / 6) * Math.PI * 2;
-      const r = spec.wheelRadius * 0.38;
-      const nut = chamferBox(
-        "nut",
-        { width: 0.05, height: 0.06, depth: 0.06, chamfer: 0.01 },
-        scene,
-      );
-      nut.position.set(outward * (spec.wheelWidth / 2 + 0.02), Math.cos(a) * r, Math.sin(a) * r);
-      parts.push(paint(nut, PALETTE.hub));
-    }
-    const wheel = mergeParts(`wheel-${i}`, parts);
-    wheel.parent = spinner;
-    wheel.material = flat;
-    wheel.receiveShadows = true;
-    shadows.addShadowCaster(wheel);
-    wheels.push({ pivot, spinner });
-  }
-
-  return { wheels, paintMaterial, tailMaterial };
+  return { flatMaterial: flat, paintMaterial, tailMaterial };
 }

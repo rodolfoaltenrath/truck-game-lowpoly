@@ -29,6 +29,10 @@ export const PALETTE = {
   indicator: hex("#ff9a1c"),
   stripeRed: hex("#d9392b"),
   stripeWhite: hex("#f3f3f0"),
+  trailerRoof: hex("#cdd3d8"),
+  logBark: hex("#7a5638"),
+  logEnd: hex("#e2b97c"),
+  soil: hex("#6e4c33"),
 
   // Cenário
   grassA: hex("#cdbb62"),

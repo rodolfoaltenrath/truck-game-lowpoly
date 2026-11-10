@@ -32,5 +32,16 @@ test("capturas do visual low poly", async ({ page }) => {
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/visual-front.png" });
   await page.mouse.up();
+
+  // Reboques estacionados (graneleiro e toras), vistos de trás e de lado.
+  await page.evaluate(() => {
+    const half = -Math.PI / 5 / 2;
+    (window as unknown as { __game: Game }).__game.teleport({
+      p: [-48, 1.6, -62],
+      q: [0, Math.sin(half), 0, Math.cos(half)],
+    });
+  });
+  await page.waitForTimeout(3000);
+  await page.screenshot({ path: "test-results/visual-trailers.png" });
   expect(errors).toEqual([]);
 });

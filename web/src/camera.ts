@@ -32,6 +32,8 @@ export class CameraRig {
   private yawOffset = 0;
   private pitchOffset = 0;
   private chaseDistance = 17;
+  private trailerTarget = 0;
+  private trailerExtra = 0;
   private dragging = false;
   private idleTime = RECENTER_DELAY;
 
@@ -119,6 +121,11 @@ export class CameraRig {
     }
   }
 
+  /** Afasta a câmera de perseguição quando há reboque engatado. */
+  setTrailerLength(length: number): void {
+    this.trailerTarget = length * 0.85;
+  }
+
   next(): void {
     const i = MODES.indexOf(this.mode);
     this.mode = MODES[(i + 1) % MODES.length] ?? "perseguição";
@@ -182,9 +189,10 @@ export class CameraRig {
     this.smoothHeading += wrapAngle(heading - this.smoothHeading) * (1 - Math.exp(-dt * 3.5));
     this.smoothPivot.copyFrom(Vector3.Lerp(this.smoothPivot, pivot, 1 - Math.exp(-dt * 12)));
 
+    this.trailerExtra += (this.trailerTarget - this.trailerExtra) * (1 - Math.exp(-dt * 1.5));
     const yaw = this.smoothHeading + this.yawOffset;
-    const pitch = CHASE_PITCH + this.pitchOffset;
-    const d = this.chaseDistance;
+    const pitch = CHASE_PITCH + this.pitchOffset + this.trailerExtra * 0.006;
+    const d = this.chaseDistance + this.trailerExtra;
     const pos = this.smoothPivot.add(
       new Vector3(
         -Math.sin(yaw) * Math.cos(pitch) * d,

@@ -591,12 +591,63 @@ fn streamed_chunk(
         materials,
     );
     graph[road].set_cast_shadows(false);
-    let mut b = Batch::terrain();
+    let mut b = Batch::default();
+    for (index, face) in game_core::serra::road().faces.iter().enumerate() {
+        let z = face.points.iter().map(|p| p[2]).sum::<f32>() * 0.25;
+        if (z / game_core::terrain::CHUNK_LENGTH).floor() as i32 != chunk {
+            continue;
+        }
+        let points = face.points.map(V::from);
+        let center = points.iter().copied().sum::<V>() * 0.25;
+        let normal = (points[1] - points[0]).cross(&(points[2] - points[0]));
+        if normal.norm_squared() > 0.000001 {
+            b.face(face.color, points.to_vec(), center - normal.normalize());
+        }
+        if index.is_multiple_of(23) && matches!(face.color, 0x879578 | 0x73897b) {
+            let p = face.points[0];
+            let away_from_road = game_core::serra::road().nodes.iter().all(|n| {
+                (p[0] - n.position[0]).powi(2) + (p[2] - n.position[2]).powi(2) > 24.0_f32.powi(2)
+            });
+            if p[1] > 5.0 && away_from_road {
+                b.crown(0x70583e, p, 0.5, 8.0);
+                for tier in 0..3 {
+                    b.crown(
+                        0x536d50,
+                        [p[0], p[1] + 4.0 + tier as f32 * 2.0, p[2]],
+                        4.8 - tier as f32 * 0.9,
+                        3.5,
+                    );
+                }
+            }
+        }
+    }
+    for (i, node) in game_core::serra::road().nodes.iter().enumerate() {
+        if (node.position[2] / game_core::terrain::CHUNK_LENGTH).floor() as i32 != chunk {
+            continue;
+        }
+        let side = if node.position[0] > 850.0 {
+            1.0
+        } else if node.position[0] < 250.0 && node.distance > 850.0 {
+            -1.0
+        } else {
+            continue;
+        };
+        if i.is_multiple_of(4) {
+            let p = node.point(side * 7.6, 0.0);
+            b.cuboid(0x596469, [0.12, 2.1, 0.12], [p[0], p[1] + 1.05, p[2]], 0.01);
+            b.cuboid(0xe6bd57, [0.16, 0.8, 1.0], [p[0], p[1] + 1.9, p[2]], 0.02);
+            b.cuboid(0x444b50, [0.18, 0.5, 0.15], [p[0], p[1] + 1.9, p[2]], 0.01);
+        }
+    }
+    b.terrain = true;
     for i in 0..16_i32 {
         let seed = (chunk * 97 + i * 31).unsigned_abs();
         let side = if i % 2 == 0 { -1.0 } else { 1.0 };
         let x = side * (18.0 + (seed % 63) as f32);
         let z = base + i as f32 * 25.0;
+        if x > 0.0 && (-2200.0..-1250.0).contains(&z) {
+            continue;
+        }
         if x > 0.0 && ((-1080.0..280.0).contains(&z) || (8920.0..9100.0).contains(&z)) {
             continue;
         }
@@ -640,6 +691,10 @@ pub fn world(scene: &mut Scene) -> Scenery {
     for chunk in -30..50 {
         let base = chunk as f32 * 200.0;
         for side in [-1.0, 1.0] {
+            if side > 0.0 && (-2400.0..-1000.0).contains(&base) {
+                horizon.crown(0x73897b, [1250.0, -0.2, base + 30.0], 180.0, 320.0);
+                continue;
+            }
             let near = if side > 0.0
                 && ((-1200.0..400.0).contains(&base) || (8800.0..9200.0).contains(&base))
             {

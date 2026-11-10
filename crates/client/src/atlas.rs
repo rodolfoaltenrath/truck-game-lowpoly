@@ -55,8 +55,8 @@ fn dot(city: u8, radius: f32) -> Primitive {
 fn local_point(position: [f32; 2], overview: bool) -> Vector2<f32> {
     if overview {
         Vector2::new(
-            250.0 + position[0] * 0.6,
-            70.0 + (9100.0 - position[1]) * 0.043,
+            100.0 + position[0] * 0.38,
+            70.0 + (9100.0 - position[1]) * 0.039,
         )
     } else {
         Vector2::new(60.0 + position[0] * 1.3, 140.0 - position[1] * 0.32)
@@ -75,7 +75,7 @@ fn local_depots(overview: bool) -> Vec<Primitive> {
 }
 fn local_roads(overview: bool) -> Vec<Primitive> {
     let lines: [([f32; 2], [f32; 2]); 8] = [
-        ([0.0, -1000.0], [0.0, 9000.0]),
+        ([0.0, -1400.0], [0.0, 9000.0]),
         ([240.0, -1000.0], [240.0, 200.0]),
         ([0.0, -1000.0], [240.0, -1000.0]),
         ([0.0, 200.0], [240.0, 200.0]),
@@ -84,7 +84,7 @@ fn local_roads(overview: bool) -> Vec<Primitive> {
         ([0.0, 9000.0], [60.0, 9000.0]),
         ([0.0, 9000.0], [0.0, 9200.0]),
     ];
-    lines
+    let mut roads: Vec<Primitive> = lines
         .into_iter()
         .filter(|(a, b)| overview || a[1] < 300.0 || b[1] < 300.0)
         .flat_map(|(a, mut b)| {
@@ -113,7 +113,16 @@ fn local_roads(overview: bool) -> Vec<Primitive> {
                 thickness: 4.0,
             })
         })
-        .collect()
+        .collect();
+    if overview {
+        let nodes = &game_core::serra::road().nodes;
+        roads.extend(nodes.windows(2).map(|w| Primitive::Line {
+            begin: local_point([w[0].position[0], w[0].position[2]], true),
+            end: local_point([w[1].position[0], w[1].position[2]], true),
+            thickness: 2.0,
+        }));
+    }
+    roads
 }
 fn layer(ui: &mut UserInterface, color: Color, primitives: Vec<Primitive>) -> Handle<VectorImage> {
     VectorImageBuilder::new(
@@ -220,7 +229,7 @@ impl Atlas {
             14.0,
             930.0,
             21.0,
-            "MAPA DIRIGÍVEL · POLO INICIAL E CORREDOR NORTE",
+            "MAPA DIRIGÍVEL · POLO, CORREDOR NORTE E SERRA",
         );
         let local_legend = text(
             ui,
@@ -228,7 +237,7 @@ impl Atlas {
             70.0,
             410.0,
             17.0,
-            "TRÊS PÁTIOS DISPONÍVEIS\n\nVerde: área de carga\nAzul: seu caminhão\nLaranja: vias dirigíveis\n\nGuarapuava: cerca de 9 km ao norte\nUnião da Vitória: polo inicial\nPorto União: 800 m ao sul do polo\n\nF: escolher destino antes da carga\nE: aceitar, carregar ou entregar\nMantenha cavalo e baú engatados e parados na área verde por 2 segundos.\n\nZ: corredor / circuito aproximado\nR: voltar ao polo e reiniciar treino\nTab: planejamento das 32 cidades\nM / Esc: voltar ao volante\n\nCorredor original, distâncias interurbanas em 1:20; não é reprodução cartográfica.",
+            "TRÊS PÁTIOS DISPONÍVEIS\n\nVerde: área de carga\nAzul: seu caminhão\nLaranja: vias dirigíveis\n\nGuarapuava: cerca de 9 km ao norte\nUnião da Vitória: polo inicial\nPorto União: 800 m ao sul do polo\nSerra: desvio a 1,4 km ao sul, lado leste\n5 cotovelos e mirante; acesso provisório\n\nF: escolher destino antes da carga\nE: aceitar, carregar ou entregar\nMantenha cavalo e baú engatados e parados na área verde por 2 segundos.\n\nZ: corredor / circuito aproximado\nR: voltar ao polo e reiniciar treino\nTab: planejamento das 32 cidades\nM / Esc: voltar ao volante\n\nCorredor original, distâncias interurbanas em 1:20; não é reprodução cartográfica.",
         );
         let label = |ui: &mut UserInterface, index: usize| {
             let depot = game_core::pilot::DEPOTS[index];
@@ -418,8 +427,11 @@ impl Atlas {
     pub fn locate(&self, ui: &mut UserInterface, position: [f32; 2]) {
         self.center(ui);
         let upper = if self.overview { 9200.0 } else { 300.0 };
-        let in_pilot =
-            (-300.0..=400.0).contains(&position[0]) && (-1100.0..=upper).contains(&position[1]);
+        let in_pilot = if self.overview {
+            (-200.0..=1000.0).contains(&position[0]) && (-2100.0..=upper).contains(&position[1])
+        } else {
+            (-30.0..=340.0).contains(&position[0]) && (-1100.0..=upper).contains(&position[1])
+        };
         let points = if in_pilot {
             vec![Primitive::Circle {
                 center: local_point(position, self.overview),

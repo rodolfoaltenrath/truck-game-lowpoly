@@ -106,6 +106,10 @@ impl Simulation {
         for terrain in [
             game_core::terrain::collision_mesh(),
             game_core::terrain::north_collision_mesh(),
+            game_core::terrain::CollisionMesh {
+                vertices: game_core::serra::road().collision.vertices.clone(),
+                triangles: game_core::serra::road().collision.triangles.clone(),
+            },
         ] {
             colliders.insert(
                 ColliderBuilder::trimesh(
@@ -488,6 +492,74 @@ mod tests {
                         );
                     }
                 }
+            }
+        }
+    }
+    #[test]
+    fn serra_concrete_barrier_stops_a_slow_sideways_departure() {
+        let node = game_core::serra::road().nodes[60];
+        let mut sim = Simulation::new();
+        sim.restore(Pose {
+            position: [
+                node.position[0],
+                node.position[1] + 1.6,
+                node.position[2] + 4.5,
+            ],
+            rotation: Rotation::from_rotation_y(std::f32::consts::FRAC_PI_2).to_array(),
+        })
+        .unwrap();
+        for _ in 0..240 {
+            sim.step(Input {
+                handbrake: true,
+                ..Input::default()
+            });
+        }
+        // Derrapagem lateral: o conjunto começa paralelo à pista e fora da defensa.
+        for body in [sim.truck, sim.trailer] {
+            sim.bodies[body].set_linvel(Vector::new(0.0, 0.0, 8.0), true);
+        }
+        let mut maximum_z = f32::NEG_INFINITY;
+        for _ in 0..120 {
+            sim.step(Input::default());
+            maximum_z = maximum_z.max(sim.snapshot().truck.position[2]);
+        }
+        let s = sim.snapshot();
+        assert!(maximum_z > node.position[2] + 5.0, "{s:?}");
+        assert!(maximum_z < node.position[2] + game_core::serra::HALF_WIDTH);
+        assert!(s.truck.position[1] > node.position[1] + 0.5);
+        assert!(s.coupled && s.truck.validate().is_ok());
+    }
+    #[test]
+    fn serra_supports_the_articulated_truck_on_both_directions_and_hairpins() {
+        let road = game_core::serra::road();
+        for index in [50, 110, 150, 220, 310, 400, 500, road.nodes.len() - 8] {
+            let node = road.nodes[index];
+            for reverse in [false, true] {
+                let yaw = (-node.normal[1]).atan2(node.normal[0])
+                    + if reverse { std::f32::consts::PI } else { 0.0 };
+                let mut sim = Simulation::new();
+                sim.restore(Pose {
+                    position: [node.position[0], node.position[1] + 1.6, node.position[2]],
+                    rotation: Rotation::from_rotation_y(yaw).to_array(),
+                })
+                .unwrap();
+                for _ in 0..240 {
+                    sim.step(Input {
+                        handbrake: true,
+                        ..Input::default()
+                    });
+                }
+                let s = sim.snapshot();
+                assert!(s.truck.validate().is_ok() && s.trailer.validate().is_ok());
+                assert!(
+                    s.coupled && s.wheels.iter().all(|w| w.contact),
+                    "nó {index}, ré {reverse}: {s:?}"
+                );
+                assert!(
+                    s.trailer_wheels.iter().all(|w| w.contact),
+                    "baú nó {index}, ré {reverse}"
+                );
+                assert!((s.truck.position[1] - node.position[1] - 1.08).abs() < 0.4);
             }
         }
     }

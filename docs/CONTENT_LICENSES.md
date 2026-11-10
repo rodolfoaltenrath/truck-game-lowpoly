@@ -13,6 +13,11 @@ o comprimento nominal de projeto não é uma medida extraída de rodovias reais.
 Nenhum modelo, textura ou som de 18 Wheels of Steel ou de mods derivados
 foi incorporado. As imagens de referência não fazem parte do executável.
 
+A serra procedural, suas curvas, maciço, placas, barreiras e mirante também
+são originais, sob Apache-2.0. O nome e as características gerais da Serra do
+Rio do Rastro foram consultados no portal municipal de Bom Jardim da Serra;
+origem e limites em [SERRA_RIO_DO_RASTRO.md](SERRA_RIO_DO_RASTRO.md).
+
 ## Conteúdo incorporado pelas dependências
 
 | Conteúdo | Origem | Licença |

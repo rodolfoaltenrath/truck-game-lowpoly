@@ -512,8 +512,13 @@ impl Plugin for Game {
                 .network
                 .as_ref()
                 .map_or_else(|| "solo".into(), |n| n.status());
+            let landmark = if (-2150.0..-1250.0).contains(&view.truck.position[2]) {
+                "\nSERRA DO RIO DO RASTRO · trecho inspirado · curvas: 20 km/h\nAcesso leste, 1,4 km ao sul do polo · R: retornar ao pátio"
+            } else {
+                ""
+            };
             let text = format!(
-                "SUL DO BRASIL · PROTÓTIPO NATIVO\n{:03.0} km/h  |  marcha {}  |  {:04.0} rpm\n{} FPS  ·  {}  ·  reboque {} · {} regiões\n{}\n{}{}",
+                "SUL DO BRASIL · PROTÓTIPO NATIVO\n{:03.0} km/h  |  marcha {}  |  {:04.0} rpm\n{} FPS  ·  {}  ·  reboque {} · {} regiões\n{}\n{}{}{}",
                 view.speed.abs() * 3.6,
                 view.gear,
                 view.rpm,
@@ -523,6 +528,7 @@ impl Plugin for Game {
                 s.scenery.resident_chunks(),
                 status,
                 s.freight_text(),
+                landmark,
                 help
             );
             ctx.user_interfaces

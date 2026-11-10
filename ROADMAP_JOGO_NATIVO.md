@@ -22,6 +22,30 @@ WebSocket é somente o transporte de rede; não requer navegador. OpenGL foi
 escolhido para alcançar também hardware antigo. Isso não garante ganho de
 FPS: desempenho e compatibilidade precisam ser medidos no executável.
 
+## Serra do Rio do Rastro — trecho inspirado
+
+- Primeiro desvio dirigível original, com aproximadamente 4,8 km, cinco
+  cotovelos de 180°, cerca de 250 m de subida e mirante alargado para retornar.
+  Inclinação central até 5,5%, pista com acostamentos, sinalização, barreiras
+  de concreto com colisão, encostas facetadas e vegetação em lotes existentes.
+- Acesso provisório a 1,4 km ao sul do polo, 600 m após Porto União, pelo lado
+  leste. M mostra o traçado e R retorna ao polo. Esse acesso não representa a
+  localização real da SC-390; conexão definitiva por Lages–Tubarão pendente.
+- Traçado/superfícies próprios compartilhados entre desenho e física, sem
+  incorporar assets, imagens ou coordenadas de terceiros. Escala 1:20 entre
+  cidades preservada; curvas e mirante mantêm espaço para o conjunto articulado.
+- Windows GNU: 66 testes do workspace e Clippy passaram. Novos testes cobrem
+  tangência, inclinação, cinco inversões de direção, limites de geometria,
+  apoio das doze rodas em oito pontos nos dois sentidos e contenção lateral
+  pela defensa. Streaming continua limitado a nove regiões visuais residentes.
+- Smokes anunciados, com dados isolados, curva e mapa local na Intel HD 4000;
+  encerramento automático com código 0, seis contatos do cavalo e baú engatado.
+  Capturas inspecionadas. Não houve benchmark, condução humana de ponta a ponta,
+  nova execução gráfica Linux ou geração de pacote portátil. Solo externo à
+  pista é decorativo e não tem colisão própria.
+- Detalhes, referência municipal e instruções em
+  [SERRA_RIO_DO_RASTRO.md](docs/SERRA_RIO_DO_RASTRO.md).
+
 ## Primeiro corredor interurbano e carregamento visual
 
 - Saída norte original até um pátio de Guarapuava a cerca de 9 km do polo,

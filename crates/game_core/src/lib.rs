@@ -13,6 +13,7 @@ pub mod interpolation;
 pub mod pilot;
 pub mod protocol;
 pub mod remotes;
+pub mod serra;
 pub mod session_client;
 pub mod session_hub;
 #[cfg(test)]

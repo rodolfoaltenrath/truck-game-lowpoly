@@ -193,6 +193,10 @@ empresas/cargas e implementação da política de início no servidor/cliente.
 
 ## Referências e origem
 
+- [Trecho inspirado na Serra do Rio do Rastro](SERRA_RIO_DO_RASTRO.md):
+  primeiro desvio dirigível com cotovelos e mirante. Acesso provisório pelo
+  circuito piloto; ligação geográfica definitiva por Lages–Tubarão pendente.
+
 - Desenho “Mapa Rodoviário do Sul do Brasil”, enviado nesta conversa: referência
   de organização dos corredores e polos, mantendo União da Vitória/Porto União
   como acréscimos do projeto. A imagem e seus escudos não foram incorporados.

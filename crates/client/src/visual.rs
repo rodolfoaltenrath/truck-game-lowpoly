@@ -29,7 +29,7 @@ pub const PAINTS: [u32; 6] = [0xd23a2c, 0xe8902c, 0xf0c02e, 0x2f6fd0, 0x93ad5c, 
 const FRAME: u32 = 0x474b52;
 const TIRE: u32 = 0x2c2d31;
 const RIM: u32 = 0xe4e7ea;
-const GLASS: u32 = 0xcfe0ea;
+const GLASS: u32 = 0x89b5c4;
 pub fn color(c: u32) -> Color {
     Color::opaque((c >> 16) as u8, (c >> 8) as u8, c as u8)
 }
@@ -44,6 +44,51 @@ pub struct Batch {
     parts: BTreeMap<u32, Geometry>,
 }
 impl Batch {
+    // Mosaico horizontal: a pintura substitui o asfalto, sem z-fighting.
+    fn ground(&mut self, c: u32, x0: f32, x1: f32, z0: f32, z1: f32) {
+        self.face(
+            c,
+            vec![
+                V::new(x0, 0.0, z0),
+                V::new(x0, 0.0, z1),
+                V::new(x1, 0.0, z1),
+                V::new(x1, 0.0, z0),
+            ],
+            V::new((x0 + x1) * 0.5, -1.0, (z0 + z1) * 0.5),
+        );
+    }
+
+    // Anéis de oito lados; normais independentes conservam as facetas.
+    fn crown(&mut self, c: u32, pos: [f32; 3], radius: f32, height: f32) {
+        let center = V::from(pos);
+        let ring = |i: usize, r: f32, y: f32| {
+            let angle = i as f32 * std::f32::consts::TAU / 8.0;
+            center + V::new(angle.cos() * r, y, angle.sin() * r)
+        };
+        for i in 0..8 {
+            let j = (i + 1) % 8;
+            self.face(
+                c,
+                vec![
+                    ring(i, radius, 0.0),
+                    ring(j, radius, 0.0),
+                    ring(j, radius * 0.55, height * 0.65),
+                    ring(i, radius * 0.55, height * 0.65),
+                ],
+                center,
+            );
+            self.face(
+                c,
+                vec![
+                    ring(i, radius * 0.55, height * 0.65),
+                    ring(j, radius * 0.55, height * 0.65),
+                    center + V::new(0.0, height, 0.0),
+                ],
+                center,
+            );
+        }
+    }
+
     fn face(&mut self, c: u32, mut points: Vec<V>, center: V) {
         let mut normal = (points[1] - points[0])
             .cross(&(points[2] - points[0]))
@@ -148,17 +193,28 @@ impl Batch {
         }
     }
     pub fn build(self, name: &str, graph: &mut Graph) -> Handle<Node> {
+        self.build_with_materials(name, graph, &mut BTreeMap::new())
+    }
+    fn build_with_materials(
+        self,
+        name: &str,
+        graph: &mut Graph,
+        materials: &mut BTreeMap<u32, MaterialResource>,
+    ) -> Handle<Node> {
         let surfaces = self
             .parts
             .into_iter()
             .map(|(c, g)| {
-                let mut material = Material::standard();
-                material.set_property("diffuseColor", color(c));
+                let material = materials.entry(c).or_insert_with(|| {
+                    let mut material = Material::standard();
+                    material.set_property("diffuseColor", color(c));
+                    MaterialResource::new_embedded(material)
+                });
                 SurfaceBuilder::new(SurfaceResource::new_embedded(SurfaceData::new(
                     VertexBuffer::new(g.vertices.len(), g.vertices).expect("geometria interna"),
                     TriangleBuffer::new(g.triangles),
                 )))
-                .with_material(MaterialResource::new_embedded(material))
+                .with_material(material.clone())
                 .build()
             })
             .collect();
@@ -191,7 +247,17 @@ impl VehicleVisual {
         b.cuboid(FRAME, [0.06, 0.84, 0.08], [0.0, 1.65, 3.48], 0.01);
         b.cuboid(0x1d1f23, [1.5, 0.45, 0.07], [0.0, 0.75, 3.47], 0.025);
         b.cuboid(RIM, [2.5, 0.26, 0.28], [0.0, -0.13, 3.52], 0.04);
+        // Defletor, pala e frisos grandes: legíveis sem texturas ou reflexos caros.
+        b.cuboid(paint, [2.3, 0.32, 1.7], [0.0, 2.4, 2.25], 0.13);
+        b.cuboid(paint, [2.45, 0.13, 0.34], [0.0, 2.16, 3.47], 0.035);
+        b.cuboid(RIM, [2.15, 0.09, 0.07], [0.0, 1.12, 3.5], 0.015);
+        for y in [0.62, 0.76, 0.9] {
+            b.cuboid(0x78818a, [1.34, 0.045, 0.04], [0.0, y, 3.52], 0.008);
+        }
         for side in [-1.0, 1.0] {
+            b.cuboid(RIM, [0.045, 0.09, 0.24], [side * 1.285, 1.08, 1.96], 0.015);
+            b.cuboid(paint, [0.045, 0.22, 1.1], [side * 1.275, 0.94, 2.6], 0.015);
+            b.cuboid(0xffbd53, [0.1, 0.15, 0.13], [side * 1.22, 0.34, 3.48], 0.02);
             b.cuboid(GLASS, [0.06, 0.75, 1.15], [side * 1.26, 1.6, 2.6], 0.025);
             b.cuboid(FRAME, [0.22, 0.22, 0.6], [side * 1.15, -0.34, 1.62], 0.02);
             b.cuboid(RIM, [0.3, 0.58, 0.16], [side * 1.44, 1.44, 3.15], 0.04);
@@ -217,6 +283,11 @@ impl VehicleVisual {
         b.cuboid(0xcdd3d8, [2.5, 0.08, 11.8], [0.0, 3.05, 0.0], 0.02);
         b.cuboid(FRAME, [0.04, 2.6, 0.06], [0.0, 1.67, -5.94], 0.01);
         for s in [-1.0, 1.0] {
+            b.cuboid(0x41676c, [0.035, 0.32, 11.5], [s * 1.267, 0.74, 0.0], 0.008);
+            for z in [-5.6, -3.75, -1.9, 0.0, 1.9, 3.75, 5.6] {
+                b.cuboid(0xc5cdd0, [0.04, 2.0, 0.055], [s * 1.275, 1.84, z], 0.008);
+            }
+            b.cuboid(RIM, [0.045, 2.25, 0.055], [s * 0.72, 1.68, -5.99], 0.008);
             b.cuboid(0xff3a2c, [0.32, 0.15, 0.06], [s * 0.86, 0.15, -6.04], 0.01);
         }
         let trailer = b.build("Reboque baú", graph);
@@ -353,67 +424,101 @@ pub fn set_pose(graph: &mut Graph, h: Handle<Node>, p: Pose) {
     t.set_rotation(rotation(p.rotation));
 }
 
-pub fn world(scene: &mut Scene) {
-    scene.rendering_options.ambient_lighting_color = color(0xb4c2cd);
-    scene.rendering_options.environment_lighting_source =
-        fyrox::scene::EnvironmentLightingSource::AmbientColor;
-    // Asfalto substitui o capim no mesmo plano, sem superfícies coplanares sobrepostas.
-    let mut b = Batch::default();
-    for side in [-1.0, 1.0] {
-        b.cuboid(
-            0xcdbb62,
-            [1500.0, 0.2, 12000.0],
-            [side * 756.0, -0.1, 0.0],
-            0.001,
-        );
+fn road_geometry() -> Batch {
+    let mut road = Batch::default();
+    // Superfícies sem espessura: duas faces por faixa, em vez de 44 por caixa.
+    // Acostamento e linhas ocupam intervalos distintos, todos no nível da física.
+    for side in [-1.0_f32, 1.0] {
+        let mut strip = |c, a: f32, b: f32| {
+            let x0 = side * a;
+            let x1 = side * b;
+            road.ground(c, x0.min(x1), x0.max(x1), -6000.0, 6000.0);
+        };
+        strip(0xb9ad70, 7.8, 1600.0);
+        strip(0x9a937b, 6.0, 7.8);
+        strip(0x444b50, 5.4, 6.0);
+        strip(0xede5ca, 5.22, 5.4);
+        strip(0x444b50, 0.09, 5.22);
     }
-    b.cuboid(0x4b4e56, [12.0, 0.2, 12000.0], [0.0, -0.1, 0.0], 0.001);
-    // Marcação elevada 2 cm, espessura suficiente para separação de profundidade.
-    for z in -160..160 {
-        b.cuboid(
-            0xf2f0e4,
-            [0.12, 0.02, 4.0],
-            [0.0, 0.01, z as f32 * 12.0],
-            0.001,
-        );
+    for i in -500..500 {
+        let z = i as f32 * 12.0;
+        road.ground(0xe6bd57, -0.09, 0.09, z, z + 4.0);
+        road.ground(0x444b50, -0.09, 0.09, z + 4.0, z + 12.0);
     }
-    for side in [-1.0, 1.0] {
-        b.cuboid(
-            0xf2f0e4,
-            [0.15, 0.02, 3800.0],
-            [side * 5.3, 0.01, 0.0],
-            0.001,
-        );
-    }
-    for i in 0..90 {
-        let z = i as f32 * 36.0 - 1500.0;
-        let side = if i % 2 == 0 { 1.0 } else { -1.0 };
-        let x = side * (20.0 + (i * 17 % 47) as f32);
-        b.cuboid(0x7b5a3d, [0.6, 3.0, 0.6], [x, 1.5, z], 0.08);
-        b.cuboid(
-            if i % 3 == 0 { 0xe0c548 } else { 0xa6c64c },
-            [4.0, 4.2, 4.0],
-            [x, 4.0, z],
-            0.9,
-        );
-    }
-    for side in [-1.0, 1.0] {
-        for i in 0..5 {
-            b.cuboid(
-                if i % 2 == 0 { 0xb99c70 } else { 0xe9edf0 },
-                [9.0, 5.0 + (i % 2) as f32 * 3.0, 12.0],
-                [
-                    side * 35.0,
-                    2.5 + (i % 2) as f32 * 1.5,
-                    150.0 + i as f32 * 30.0,
-                ],
-                0.15,
-            );
-        }
-    }
-    b.build("Rodovia de validação nativa", &mut scene.graph);
+    road
 }
 
+pub fn world(scene: &mut Scene) {
+    let mut materials = BTreeMap::new();
+    scene.rendering_options.ambient_lighting_color = color(0xa9b9c7);
+    scene.rendering_options.environment_lighting_source =
+        fyrox::scene::EnvironmentLightingSource::AmbientColor;
+    let road = road_geometry();
+    let ground = road.build_with_materials(
+        "Solo e rodovia sem sobreposição",
+        &mut scene.graph,
+        &mut materials,
+    );
+    scene.graph[ground].set_cast_shadows(false);
+
+    // Lotes espaciais independentes: o frustum pode descartar trechos inteiros.
+    // Vegetação e morros são decorativos, fora da pista; não simulam colisões.
+    for chunk in -12_i32..18 {
+        let mut b = Batch::default();
+        let base = chunk as f32 * 200.0;
+        for i in 0..8_i32 {
+            let seed = (chunk * 97 + i * 31).unsigned_abs();
+            let side = if i % 2 == 0 { -1.0 } else { 1.0 };
+            let x = side * (18.0 + (seed % 63) as f32);
+            let z = base + i as f32 * 25.0;
+            let scale = 0.85 + (seed % 5) as f32 * 0.12;
+            b.crown(0x70583e, [x, 0.0, z], 0.3, 3.8 * scale);
+            if seed % 3 == 0 {
+                for tier in 0..3 {
+                    b.crown(
+                        0x536d50,
+                        [x, (2.0 + tier as f32 * 1.4) * scale, z],
+                        (2.8 - tier as f32 * 0.65) * scale,
+                        2.9 * scale,
+                    );
+                }
+            } else {
+                let tint = if seed % 4 == 0 { 0xb6ad59 } else { 0x879951 };
+                b.crown(tint, [x, 2.2 * scale, z], 3.2 * scale, 4.2 * scale);
+            }
+            if i % 4 == 0 {
+                b.cuboid(
+                    0xb3b09a,
+                    [2.3, 1.2, 1.8],
+                    [x + side * 4.0, 0.45, z + 5.0],
+                    0.5,
+                );
+            }
+        }
+        for side in [-1.0, 1.0] {
+            b.crown(0x879578, [side * 230.0, -0.2, base + 90.0], 130.0, 47.0);
+            b.crown(0x73897b, [side * 440.0, -0.2, base + 30.0], 165.0, 85.0);
+        }
+        b.build_with_materials(
+            &format!("Paisagem {chunk}"),
+            &mut scene.graph,
+            &mut materials,
+        );
+    }
+    // Pequeno conjunto rural original, com telhados, portões e beirais legíveis.
+    let mut village = Batch::default();
+    for i in 0..4 {
+        let x = -36.0 - (i % 2) as f32 * 18.0;
+        let z = 100.0 + i as f32 * 40.0;
+        village.cuboid(0xdfd7bd, [10.0, 4.5, 14.0], [x, 2.25, z], 0.08);
+        village.cuboid(0x996951, [11.0, 0.7, 15.0], [x, 4.65, z], 0.3);
+        village.cuboid(0x596c70, [0.08, 3.4, 4.0], [x + 5.02, 1.7, z], 0.015);
+        for offset in [-4.7, 4.7] {
+            village.cuboid(GLASS, [0.08, 1.1, 1.3], [x + 5.02, 2.6, z + offset], 0.015);
+        }
+    }
+    village.build_with_materials("Galpões rurais", &mut scene.graph, &mut materials);
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -424,6 +529,29 @@ mod tests {
             buffer::{VertexAttributeUsage, VertexReadTrait},
         },
     };
+    #[test]
+    fn road_is_flat_upward_and_within_geometry_budget() {
+        let road = road_geometry();
+        let mut count = 0;
+        let mut area = 0.0_f64;
+        for part in road.parts.values() {
+            for triangle in &part.triangles {
+                let [a, b, c] = triangle.0.map(|i| part.vertices[i as usize].position);
+                assert!(a.y == 0.0 && b.y == 0.0 && c.y == 0.0);
+                let normal = (b - a).cross(&(c - a));
+                assert!(normal.y > 0.0, "face invertida ou degenerada");
+                area += f64::from(normal.y) * 0.5;
+                count += 1;
+            }
+        }
+        assert!(
+            count < 4100,
+            "pintura e solo excederam o orçamento: {count}"
+        );
+        let expected = 3200.0 * 12000.0;
+        assert!((area - expected).abs() < expected * 0.00001);
+    }
+
     #[test]
     fn rendered_truck_keeps_clearance_for_all_six_tires_at_full_compression() {
         let mut graph = Graph::new();

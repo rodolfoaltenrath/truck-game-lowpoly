@@ -29,6 +29,24 @@ sem ambiente gráfico. Não é necessário abrir localhost:5173.
 **Windows:** Rust MSVC com C++ Build Tools ou Rust GNU com MinGW. Para esta
 máquina, consultar [WINDOWS_DEV.md](docs/WINDOWS_DEV.md).
 
+Para experimentar alterações nesta máquina, use o ciclo incremental:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1
+```
+
+Acrescente `-Check` para verificar o código sem gerar o executável ou abrir a janela.
+Não executa testes. Preserve `target/` para reaproveitar o cache de compilação.
+
+Para validar e gerar o pacote nesta máquina, execute na raiz:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-native.ps1 -Smoke
+```
+
+O script roda testes e Clippy, gera o pacote em `dist/` e salva captura/relatório
+em `target/native-review/`. Sem `-Smoke`, não abre a janela do jogo.
+
 **Linux:** OpenGL 3.3 e bibliotecas de desenvolvimento para compilar:
 
 ```sh
@@ -111,3 +129,6 @@ legacy/           fonte de extração do mod antigo, fora do Git/workspace
 
 Geometria e paleta são próprias. Fontes e dependências têm suas licenças
 registradas em [CONTENT_LICENSES.md](docs/CONTENT_LICENSES.md).
+
+
+teste em dev: powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1

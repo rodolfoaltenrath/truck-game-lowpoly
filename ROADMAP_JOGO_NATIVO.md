@@ -22,6 +22,35 @@ WebSocket é somente o transporte de rede; não requer navegador. OpenGL foi
 escolhido para alcançar também hardware antigo. Isso não garante ganho de
 FPS: desempenho e compatibilidade precisam ser medidos no executável.
 
+## Revisão visual — validação executável adiada
+
+Ciclo rápido acrescentado: `scripts/dev.ps1` executa somente o cliente no perfil
+dev, reaproveitando o cache existente; `-Check` verifica cliente e testes sem gerar
+executável nem rodar testes. Mantém a preparação GNU do script completo, sem mudar
+perfis ou flags para forçar reconstrução. Sintaxe PowerShell conferida; nenhum
+build ou teste executado nesta alteração, conforme a solicitação de adiamento.
+
+O proprietário compilou e confirmou que o cliente abriu e funcionou nesta revisão.
+Isso não certifica desempenho, qualidade visual ou a suíte automatizada completa.
+O pacote em `dist/` ainda corresponde à base anterior.
+
+- Cabine com defletor, pala, frisos, grade e detalhes de portas; baú com faixas,
+  nervuras e ferragens. Vidros com tonalidade mais definida.
+- Copas facetadas, pinheiros, pedras, galpões e morros decorativos originais.
+  Vegetação agrupada em trechos de 200 m para descarte pelo frustum, com materiais
+  compartilhados entre lotes. O relevo é visual, sem colisões novas.
+- Solo, acostamento, asfalto e pintura formam mosaico horizontal sem sobreposição.
+  A rodovia usa 4.020 triângulos; remove caixas chanfradas das marcações. O cenário
+  ganhou geometria, portanto a redução da pista não comprova ganho global de FPS.
+- Novo teste verifica plano, orientação, área total e orçamento da rodovia.
+  O teste existente de folga dos pneus permanece e deve ser reexecutado.
+- `scripts/build-native.ps1` prepara GNU local quando aplicável, usa dois trabalhos
+  de compilação por padrão, verifica formato, executa testes e Clippy e gera pacote.
+  `-Smoke` executa 600 quadros com relatório e captura; `-Dev` usa desenvolvimento.
+- Verificações desta revisão: formatação Rust, análise sintática PowerShell e
+  `git diff --check`. Testes, compilação, inspeção gráfica e medição de FPS ficam
+  pendentes até executar o script. Nenhuma melhoria de desempenho foi medida.
+
 ## Primeira base nativa
 
 - Caminhão de cabine avançada, seis rodas raycast, direção, câmbio automático,

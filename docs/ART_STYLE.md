@@ -57,6 +57,12 @@ separada; o vão inferior da cabine e os para-lamas respeitam a suspensão.
 
 ## Renderização nativa
 
+Revisão visual com abertura confirmada pelo proprietário: copas de oito
+lados, pinheiros em camadas, morros decorativos, galpões e detalhes da carroceria.
+A estrada usa faces horizontais adjacentes, incluindo a pintura; vegetação em
+lotes de 200 m compartilha materiais. Manter a resolução nativa e medir o custo
+global antes de afirmar ganhos: o cenário agora contém mais objetos.
+
 Fyrox/OpenGL 3.3, janela em resolução nativa. Preset inicial sem SSAO, HDR,
 FXAA ou sombras; G alterna sombras de 512. Não reduzir automaticamente a
 resolução. Reavaliar antialiasing e brilho após medir custo e nitidez na GPU

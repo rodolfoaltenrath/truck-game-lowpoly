@@ -8,14 +8,22 @@ Plano completo: [ROADMAP_JOGO_WEB.md](ROADMAP_JOGO_WEB.md).
 
 ## Rodar
 
+Requisitos: Rust (rustup), `gcc`, Node 24 + pnpm e
+`cargo install wasm-bindgen-cli --version 0.2.130`.
+
 ```
-cd web
-pnpm install
-pnpm dev
+# terminal 1: sala do multiplayer
+cd web && pnpm server            # ws://0.0.0.0:39100, sala "lan"
+
+# terminal 2: jogo
+cd web && pnpm install && pnpm dev   # http://localhost:5173
 ```
 
-Abra http://localhost:5173. Outros PCs da rede local usam o IP desta máquina
-na mesma porta. `?webgpu` na URL tenta WebGPU (padrão: WebGL2).
+Cada aba do navegador é um jogador. Outros PCs da rede local abrem
+`http://IP-DESTA-MÁQUINA:5173` e conectam sozinhos na sala desta máquina.
+Parâmetros de URL: `?solo` (sem rede), `?servidor=ws://host:39100`,
+`?sala=nome`, `?webgpu` (tenta WebGPU; padrão WebGL2). Para testar sozinho
+com um "fantasma" seu: `pnpm server --echo`.
 
 ## Controles
 
@@ -37,10 +45,13 @@ na mesma porta. `?webgpu` na URL tenta WebGPU (padrão: WebGL2).
 ## Estrutura
 
 ```
-crates/game_core/   núcleo Rust sem I/O (nativo + WASM)
+crates/game_core/   núcleo Rust sem I/O: protocolo, sala, cliente, interpolação
+crates/game_core_wasm/  ponte wasm-bindgen para o navegador
+crates/server/      servidor da sala (Tokio + WebSocket)
 web/                cliente Vite + TypeScript
   src/vehicle/      caminhão, trem de força
   src/world/        pista de testes procedural
+  src/net/          WebSocket, sessão (WASM) e caminhões remotos
   e2e/              testes Playwright
 legacy/mod-18wos/   código do mod antigo, fonte para extração
 ```

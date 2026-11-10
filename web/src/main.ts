@@ -3,6 +3,8 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { CameraRig } from "./camera";
 import { Hud } from "./hud";
 import { type DriveInput, Input } from "./input";
+import { RemoteVehicles, TRAILER_KINDS } from "./net/remoteVehicles";
+import { type LocalVehicle, type NetStatus, Session } from "./net/session";
 import { Graphics } from "./render/graphics";
 import { PAINTS } from "./render/palette";
 import { Hitch, type HitchStatus } from "./vehicle/hitch";
@@ -88,6 +90,29 @@ async function main(): Promise<void> {
       t.teleport(hitch.poseBehindTruck(t));
     }
   };
+  // Multiplayer: conecta à sala (se houver servidor) e desenha os outros.
+  const session = await Session.create().catch((e: unknown) => {
+    console.warn("rede indisponível", e);
+    return null;
+  });
+  const remotes = new RemoteVehicles(scene, shadows);
+  window.addEventListener("beforeunload", () => session?.leave());
+  const localVehicle = (): LocalVehicle => {
+    const t = truck.body.translation();
+    const r = truck.body.rotation();
+    const trailer = hitch.trailer;
+    const tt = trailer?.body.translation();
+    const tr = trailer?.body.rotation();
+    return {
+      position: [t.x, t.y, t.z],
+      rotation: [r.x, r.y, r.z, r.w],
+      paint: paintIndex,
+      steerMrad: Math.max(-1000, Math.min(1000, Math.round(lastTelemetry.steerAngle * 1000))),
+      trailerKind: trailer ? TRAILER_KINDS.indexOf(trailer.spec.kind) : -1,
+      trailerPosition: tt ? [tt.x, tt.y, tt.z] : [],
+      trailerRotation: tr ? [tr.x, tr.y, tr.z, tr.w] : [],
+    };
+  };
   const input = new Input(window);
   const cameras = new CameraRig(scene, canvas, truck);
   const hud = new Hud(hudRoot);
@@ -103,6 +128,7 @@ async function main(): Promise<void> {
   let interpolate = true;
   let lastTelemetry: TruckTelemetry = truck.telemetry();
   let lastHitch: HitchStatus = hitch.status();
+  let lastNet: NetStatus | null = null;
 
   engine.runRenderLoop(() => {
     const dt = Math.min(engine.getDeltaTime() / 1000, 0.1);
@@ -171,6 +197,12 @@ async function main(): Promise<void> {
 
     lastTelemetry = truck.telemetry();
     lastHitch = hitch.status();
+    const now = performance.now();
+    if (session) {
+      session.update(now, localVehicle());
+      remotes.update(session.remotes(now));
+      lastNet = session.status();
+    }
     for (const m of hitch.takeMessages()) {
       hud.flash(m);
     }
@@ -178,7 +210,7 @@ async function main(): Promise<void> {
     hud.update(
       dt,
       lastTelemetry,
-      `${engine.description.includes("WebGPU") ? "WebGPU" : "WebGL"} · gráficos ${graphics.quality} · câmera ${cameras.mode}`,
+      `${netLabel(session, lastNet)} · ${engine.description.includes("WebGPU") ? "WebGPU" : "WebGL"} · gráficos ${graphics.quality} · câmera ${cameras.mode}`,
     );
     scene.render();
   });
@@ -200,6 +232,8 @@ async function main(): Promise<void> {
       },
       teleport: (pose?: TruckPose) => placeTruck(() => truck.teleport(pose)),
       hitch: () => lastHitch,
+      net: () => lastNet,
+      remoteViews: () => (session ? session.remotes(performance.now()) : []),
       toggleCouple: () => hitch.toggle(),
       renderPosition: () => truck.root.position.asArray(),
       meshCount: () => scene.meshes.length,
@@ -209,6 +243,17 @@ async function main(): Promise<void> {
       ready: true,
     };
   }
+}
+
+function netLabel(session: Session | null, s: NetStatus | null): string {
+  if (!session) {
+    return "solo";
+  }
+  if (!s?.connected) {
+    return s?.refusal ? `recusado (${s.refusal})` : `offline (${session.address})`;
+  }
+  const others = s.remotes === 1 ? "1 jogador" : `${s.remotes} jogadores`;
+  return `online #${s.player} · ${others}${s.rtt_ms !== null ? ` · ${s.rtt_ms} ms` : ""}`;
 }
 
 function savePose(pose: TruckPose): void {

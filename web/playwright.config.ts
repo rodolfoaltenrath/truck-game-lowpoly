@@ -10,9 +10,18 @@ export default defineConfig({
     viewport: { width: 1280, height: 720 },
     launchOptions: { args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
   },
-  webServer: {
-    command: "pnpm dev",
-    url: "http://localhost:5173",
-    reuseExistingServer: true,
-  },
+  webServer: [
+    {
+      command: "pnpm dev",
+      url: "http://localhost:5173",
+      reuseExistingServer: true,
+    },
+    {
+      // Sala do multiplayer (servidor Rust).
+      command: "cargo run --release -p truck_server -- --bind 127.0.0.1:39100",
+      port: 39100,
+      reuseExistingServer: true,
+      timeout: 300_000,
+    },
+  ],
 });

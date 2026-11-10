@@ -1,0 +1,16 @@
+[package]
+name = "game_core_wasm"
+description = "Ponte wasm-bindgen do game_core para o cliente web."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+game_core = { path = "../game_core" }
+serde.workspace = true
+serde_json.workspace = true
+wasm-bindgen = "0.2"

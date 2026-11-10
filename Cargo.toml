@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/game_core"]
+members = ["crates/game_core", "crates/game_core_wasm", "crates/server"]
 exclude = ["legacy"]
 resolver = "3"
 
@@ -11,6 +11,11 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [profile.release]
 lto = "thin"
+
+# O cliente web baixa o .wasm: priorizar tamanho.
+[profile.release.package.game_core_wasm]
+opt-level = "s"

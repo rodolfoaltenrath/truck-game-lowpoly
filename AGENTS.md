@@ -36,18 +36,19 @@ jogo. Não adicionar `legacy/` ao workspace.
 - Node 24 LTS em `~/.local/opt/node` (links em `~/.local/bin`), pnpm 10.
 - Rust via rustup em `~/.cargo` (toolchain fixado em `rust-toolchain.toml`,
   alvo `wasm32-unknown-unknown`).
-- Falta `gcc` (precisa de sudo): `cargo check` e build WASM funcionam, mas
-  testes/binários nativos Rust não linkam até instalar
-  (`sudo dnf install gcc`).
+- `gcc` instalado pelo proprietário em 10/11/2026; `wasm-bindgen-cli`
+  0.2.130 via `cargo install` (versão precisa bater com o `Cargo.lock`).
+- Push por SSH (chave do proprietário, sem senha) para `origin`.
 
 ## Fluxo de desenvolvimento
 
 ```
 cd web
-pnpm dev          # http://localhost:5173 — recarrega a cada arquivo salvo
+pnpm server       # sala em ws://0.0.0.0:39100 (Rust)
+pnpm dev          # gera o WASM e abre http://localhost:5173 com recarga
 pnpm check        # tsc + biome
-pnpm test:e2e     # Playwright (Chromium headless, render por software)
-cargo check       # na raiz
+pnpm test:e2e     # Playwright (sobe Vite e servidor se preciso)
+cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 Em modo dev, `window.__game` expõe `telemetry()`, `setInput()` e `teleport()`

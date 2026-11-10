@@ -613,8 +613,42 @@ servidor.
   rolagem livre; carga é massa fixa; sem tombamento de carga.
 - **Pendente**: sensação de dirigir com reboque testada por pessoa.
 
+### 10/11/2026 — F2 (multiplayer) primeira entrega, na bancada
+
+- `crates/game_core` recebeu, com nota de origem em cada arquivo, os módulos
+  de sessão do mod: protocolo v2, hub da sala, cliente, janela de eventos,
+  medição de tempo, tráfego e a interpolação (relógio agora vem do chamador;
+  metros em vez de centímetros). Removida a admissão da carreira do mod.
+  Pose ganhou estado do veículo (pintura, esterço, reboque com tipo e pose),
+  com limites: reboque a no máximo 25 m do cavalo, índices limitados.
+  Lote de snapshot caiu de 4 para 2 poses para caber em 1200 bytes com
+  reboque (teste de pior caso).
+- `game_core::remotes`: históricos do cavalo e do reboque por jogador,
+  roster, troca de reboque sem interpolar do anterior, some após 1 s sem
+  notícias.
+- `crates/server` (`truck_server`): Tokio + WebSocket; uma tarefa dona do
+  hub, fila de saída limitada por conexão (descarta como datagrama perdido),
+  mensagens acima de 2400 bytes recusadas, até 128 conexões. `--echo` para
+  testar sozinho.
+- `crates/game_core_wasm`: ponte wasm-bindgen (`NetClient`), 400 KB. O
+  TypeScript só abre o WebSocket e desenha (`web/src/net/`). Identidade por
+  aba (`sessionStorage`), pose a 20 Hz, reconexão a cada 2 s.
+- Remotos com o mesmo modelo low poly, rodas girando pela distância e
+  esterçando pelo valor recebido; reboque aparece/some conforme engatado.
+- Testes: 31 do game_core (incluindo os portados do mod) + 2 do servidor
+  com WebSocket real (troca de poses com reboque e saída confirmada;
+  mensagem gigante recusada). Playwright `multiplayer.spec.ts`: dois
+  navegadores na mesma sala, B vê A andar com o baú, A fecha e some de B.
+  Clippy sem avisos (nativo e WASM), rustfmt.
+- **Limitações**: sem colisão entre jogadores (fantasma); WebSocket (TCP),
+  WebTransport fica para depois; sem nome de jogador; snapshots a 60 Hz em
+  lotes de 2 (custo cresce com a sala, medir antes de passar de 16).
+  O teste de suavidade às vezes falha no Chromium headless lento.
+- **Pendente**: LAN real com dois PCs; sensação dos remotos (atraso,
+  suavidade) vista por pessoas.
+
 ### Próximo passo
 
-Ajustar direção e reboque com o retorno do proprietário no navegador; depois
-F2 (extrair `game_core` e ligar dois navegadores pelo servidor, já com o
-reboque sincronizado).
+Teste do proprietário: duas abas (ou dois PCs na LAN) com o servidor
+rodando. Depois, F4 (primeiro mundo de verdade) ou F5 (fretes), conforme a
+prioridade dele.

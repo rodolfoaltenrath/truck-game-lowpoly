@@ -20,3 +20,6 @@ web/playwright-report/
 
 # Código do mod antigo: já versionado no repo 18wos-across-america-mp; aqui só cópia local para extração
 /legacy/
+
+# Pacote WASM gerado por `pnpm wasm`
+web/wasm/

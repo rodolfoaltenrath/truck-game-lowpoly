@@ -3,12 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host",
-    "build": "tsc --noEmit && vite build",
+    "wasm": "cargo build -p game_core_wasm --target wasm32-unknown-unknown --release && wasm-bindgen --target web --out-dir wasm/pkg ../target/wasm32-unknown-unknown/release/game_core_wasm.wasm",
+    "dev": "pnpm wasm && vite --host",
+    "build": "pnpm wasm && tsc --noEmit && vite build",
     "preview": "vite preview --host",
-    "check": "tsc --noEmit && biome check src",
+    "check": "tsc --noEmit && biome check src e2e",
     "format": "biome check --write src e2e",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "server": "cargo run --release -p truck_server --"
   },
   "dependencies": {
     "@babylonjs/core": "^9.35.0",

@@ -1,26 +1,27 @@
 //! Núcleo compartilhado entre o servidor nativo e o cliente web (WASM).
 //!
-//! Regra: nada de I/O aqui (sem `std::fs`, `std::net`, relógio do sistema).
-//! Sockets, armazenamento e tempo entram como parâmetros.
+//! Regra: nada de I/O aqui (sem `std::fs`, `std::net` em uso, relógio do
+//! sistema ou entropia do SO). Sockets, armazenamento, tempo monotônico em
+//! milissegundos e aleatoriedade entram como parâmetros.
 //!
-//! Na F2 recebe o protocolo de sessão, eventos confiáveis e interpolação
-//! extraídos de `legacy/mod-18wos/multiplayer_server`.
+//! Os módulos de sessão vieram do mod antigo (`legacy/mod-18wos`), onde foram
+//! testados em bancada e numa LAN real; cada arquivo registra a origem e o
+//! que mudou.
 
-/// Versão do protocolo de rede do jogo web (independente do mod legado).
-pub const PROTOCOL_VERSION: u16 = 1;
+pub mod event_window;
+pub mod interpolation;
+pub mod protocol;
+pub mod remotes;
+pub mod session_client;
+pub mod session_hub;
+#[cfg(test)]
+mod session_hub_tests;
+pub mod session_protocol;
+pub mod session_timing;
+pub mod traffic;
 
 /// Converte m/s para km/h.
 #[must_use]
 pub fn mps_to_kmh(mps: f32) -> f32 {
     mps * 3.6
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn converte_velocidade() {
-        assert!((mps_to_kmh(25.0) - 90.0).abs() < 1e-4);
-    }
 }

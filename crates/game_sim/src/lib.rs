@@ -1,5 +1,6 @@
 //! Simulação sans-I/O. Origem: protótipo próprio `web/src/vehicle/`, commit 346aced.
 mod drivetrain;
+mod handling;
 pub use drivetrain::Drivetrain;
 use rapier3d::{
     control::{DynamicRayCastVehicleController, WheelTuning},
@@ -86,6 +87,8 @@ pub struct Simulation {
     landing_legs: Vec<ColliderHandle>,
     drivetrain: Drivetrain,
     steer: f32,
+    throttle: f32,
+    brake: f32,
     reverse: bool,
 }
 impl Default for Simulation {
@@ -134,6 +137,17 @@ impl Simulation {
         let trailer = bodies.insert(
             RigidBodyBuilder::dynamic()
                 .translation(Vector::new(0.0, 1.89, -6.75))
+                // Carga baixa distribuída pelo piso, separada da casca do baú.
+                // Massa total preservada: 6500 + 1500 + 7500 = 15500 kg.
+                .additional_mass_properties(MassProperties::new(
+                    Vector::new(0.0, 0.7, 0.0),
+                    7500.0,
+                    Vector::new(
+                        2500.0 * (0.45 * 0.45 + 5.4 * 5.4),
+                        2500.0 * (1.1 * 1.1 + 5.4 * 5.4),
+                        2500.0 * (1.1 * 1.1 + 0.45 * 0.45),
+                    ),
+                ))
                 .can_sleep(false)
                 .ccd_enabled(true),
         );
@@ -175,7 +189,7 @@ impl Simulation {
         colliders.insert_with_parent(
             ColliderBuilder::cuboid(1.25, 1.35, 5.9)
                 .translation(Vector::new(0.0, 1.67, 0.0))
-                .mass(9000.0)
+                .mass(1500.0)
                 .collision_groups(groups)
                 .build(),
             trailer,
@@ -231,6 +245,8 @@ impl Simulation {
             landing_legs,
             drivetrain: Drivetrain::default(),
             steer: 0.0,
+            throttle: 0.0,
+            brake: 0.0,
             reverse: false,
         }
     }
@@ -242,8 +258,10 @@ impl Simulation {
                 0.0
             }
         }
-        let throttle = bounded(input.throttle);
-        let brake = bounded(input.brake);
+        self.throttle = handling::smooth(self.throttle, bounded(input.throttle), 0.15, DT);
+        self.brake = handling::smooth(self.brake, bounded(input.brake), 0.08, DT);
+        let throttle = self.throttle;
+        let brake = self.brake;
         let speed = self.speed();
         if brake > 0.1 && throttle < 0.05 && speed < 0.8 {
             self.reverse = true;
@@ -258,12 +276,10 @@ impl Simulation {
             0.52,
             self.reverse,
         );
-        let target = if input.steer.is_finite() {
-            -input.steer.clamp(-1.0, 1.0) * 0.6 / (1.0 + speed.abs() / 10.0)
-        } else {
-            0.0
-        };
-        self.steer += (target - self.steer).clamp(-1.6 * DT, 1.6 * DT);
+        let target = handling::steering_target(input.steer, speed);
+        let change = handling::smooth(self.steer, target, 0.18, DT) - self.steer;
+        let rate = 1.15 / (1.0 + speed.abs() / 12.0);
+        self.steer += change.clamp(-rate * DT, rate * DT);
         let braking = if input.handbrake {
             600.0
         } else if !self.reverse {
@@ -286,6 +302,7 @@ impl Simulation {
         for (h, drag) in [(self.truck, 4.5), (self.trailer, 3.2)] {
             let b = &mut self.bodies[h];
             b.reset_forces(true);
+            b.reset_torques(true);
             let v = b.linvel();
             let len = v.length();
             if len > 0.02 {
@@ -304,6 +321,8 @@ impl Simulation {
             );
             v.update_vehicle(DT, q);
         }
+        handling::anti_roll(&self.vehicle, &mut self.bodies, 18000.0);
+        handling::anti_roll(&self.trailer_vehicle, &mut self.bodies, 24000.0);
         self.pipeline.step(
             Vector::new(0.0, -9.81, 0.0),
             &IntegrationParameters {
@@ -433,9 +452,9 @@ fn controller(
     v.index_up_axis = 1;
     v.index_forward_axis = 2;
     let tuning = WheelTuning {
-        suspension_stiffness: 30.0,
-        suspension_compression: 2.6,
-        suspension_damping: 3.4,
+        suspension_stiffness: 34.0,
+        suspension_compression: 3.2,
+        suspension_damping: 4.0,
         max_suspension_travel: 0.3,
         friction_slip: 2.2,
         max_suspension_force: 1.0e7,
@@ -456,6 +475,67 @@ fn controller(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn loaded_truck_stays_upright_in_sustained_turns_and_keyboard_slalom() {
+        for (kmh, slalom) in [(30.0, false), (60.0, false), (80.0, true)] {
+            let mut sim = Simulation::new();
+            sim.restore(Pose {
+                position: [-800.0, 1.6, -4000.0],
+                rotation: [0.0, 0.0, 0.0, 1.0],
+            })
+            .unwrap();
+            for _ in 0..180 {
+                sim.step(Input {
+                    handbrake: true,
+                    ..Input::default()
+                });
+            }
+            assert!((sim.bodies[sim.truck].mass() - 8000.0).abs() < 1.0);
+            assert!((sim.bodies[sim.trailer].mass() - 15500.0).abs() < 1.0);
+            for h in [sim.truck, sim.trailer] {
+                sim.bodies[h].set_linvel(Vector::new(0.0, 0.0, kmh / 3.6), true);
+            }
+            let mut minimum_up = 1.0_f32;
+            let mut maximum_steer_step = 0.0_f32;
+            let mut previous_steer = sim.steer;
+            let mut changed_heading = false;
+            for tick in 0..1200 {
+                let speed_error = kmh / 3.6 - sim.speed();
+                sim.step(Input {
+                    throttle: (speed_error * 0.5 + 0.2).clamp(0.0, 1.0),
+                    brake: (-speed_error * 0.2).clamp(0.0, 1.0),
+                    steer: if tick < 120 {
+                        0.0
+                    } else if !slalom || (tick / 180) % 2 == 0 {
+                        1.0
+                    } else {
+                        -1.0
+                    },
+                    ..Input::default()
+                });
+                for h in [sim.truck, sim.trailer] {
+                    minimum_up = minimum_up.min((*sim.bodies[h].rotation() * Vector::Y).y);
+                }
+                maximum_steer_step = maximum_steer_step.max((sim.steer - previous_steer).abs());
+                previous_steer = sim.steer;
+                changed_heading |= (*sim.bodies[sim.truck].rotation() * Vector::Z).z < 0.99;
+            }
+            assert!(
+                minimum_up > 0.9,
+                "{kmh} km/h, slalom={slalom}, menor vertical={minimum_up}"
+            );
+            assert!(maximum_steer_step < 0.02);
+            assert!(
+                changed_heading,
+                "{kmh} km/h: o conjunto precisa realmente fazer a curva"
+            );
+            assert!(sim.snapshot().coupled);
+            assert!(
+                sim.speed() > kmh / 3.6 * 0.75,
+                "curva não pode ser validada só por perder toda a velocidade"
+            );
+        }
+    }
     #[test]
     fn repeated_turns_braking_and_reverse_keep_simulation_finite() {
         for z in [0.0, -160.0, -400.0, -640.0] {
@@ -557,7 +637,7 @@ mod tests {
                 );
                 assert!(
                     s.trailer_wheels.iter().all(|w| w.contact),
-                    "baú nó {index}, ré {reverse}"
+                    "baú nó {index}, ré {reverse}: {s:?}"
                 );
                 assert!((s.truck.position[1] - node.position[1] - 1.08).abs() < 0.4);
             }

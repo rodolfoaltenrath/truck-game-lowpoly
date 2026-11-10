@@ -22,6 +22,24 @@ WebSocket é somente o transporte de rede; não requer navegador. OpenGL foi
 escolhido para alcançar também hardware antigo. Isso não garante ganho de
 FPS: desempenho e compatibilidade precisam ser medidos no executável.
 
+## Direção suave e estabilidade do conjunto carregado
+
+- Tombamento reproduzido em curva contínua a 60 km/h. Novo teste verifica
+  orientação dos dois corpos; o estresse anterior só garantia poses finitas.
+- Esterço assistido conforme a velocidade, transições suaves de direção e
+  pedais, amortecimento recalibrado e barras estabilizadoras por eixo.
+  Carga distribuída mais baixa, preservando as massas totais do cavalo/baú.
+- Regressão cobre curvas a 30/60 km/h e slalom a 80 km/h, mantendo velocidade,
+  mudança real de rumo, engate e vertical dos corpos acima de 0,9. Testes da
+  serra continuam exigindo apoio das doze rodas em oito pontos nos dois sentidos.
+- Detalhes e limites em [DRIVING.md](docs/DRIVING.md). São parâmetros de
+  jogabilidade; sensação humana e calibração por modelo real seguem pendentes.
+- Windows GNU: 67 testes do workspace, formatação e Clippy passaram; build
+  incremental do cliente concluído. Smoke de 600 quadros com aceleração,
+  curvas, freio e ré na Intel HD 4000 encerrou com código 0, seis contatos do
+  cavalo e baú engatado; captura inspecionada. Janela anunciada e dados isolados.
+  Sem benchmark, novo pacote portátil ou nova validação gráfica Linux.
+
 ## Diretriz de altimetria para a expansão
 
 - Pedido do proprietário em 10/11/2026: preservar o relevo característico dos

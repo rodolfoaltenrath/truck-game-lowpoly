@@ -5204,6 +5204,7 @@ dependencies = [
 name = "truck_sim"
 version = "0.1.0"
 dependencies = [
+ "game_core",
  "rapier3d",
  "serde",
 ]

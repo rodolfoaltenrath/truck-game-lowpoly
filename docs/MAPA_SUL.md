@@ -9,7 +9,7 @@ O módulo `game_core::south` contém 32 cidades, 47 ligações bidirecionais e
 pedágio. As coordenadas são próprias e esquemáticas; distâncias e pedágios
 não representam geografia, concessões ou viagens reais.
 
-No cenário 3D existe apenas o circuito piloto: dois pátios identificados com
+No cenário 3D existe apenas o circuito piloto com curvas e relevo: dois pátios identificados com
 União da Vitória e Porto União, separados por 800 m, com via direta e retorno
 alternativo a leste. Essa escala de exercício é independente do atlas regional.
 M abre o mapa local, Tab alterna para o planejamento. Não confundir a rede
@@ -146,6 +146,24 @@ Regras de revisão:
 
 ## Escala e construção
 
+Decisão do proprietário: **1:20 para as distâncias interurbanas**. Veículos,
+largura de pista, docas e áreas de manobra permanecem em 1:1; acessos e cidades
+recebem espaço próprio para caminhões articulados. A cada 100 km de referência,
+o corredor terá aproximadamente 5 km jogáveis, antes de ajustes de traçado.
+Não reduzir raio de curva nem extensão de rampa cegamente pela mesma razão.
+
+O atlas atual continua sendo um diagrama esquemático; suas coordenadas não são
+o traçado definitivo em 1:20. O circuito piloto usa distâncias de treino próprias.
+A expansão regional exigirá ampliar os limites atuais de coordenadas/colisão e
+validar o protocolo, além de carregar terreno e detalhes por regiões. A escala
+escolhida não significa que o mapa inteiro será mantido em memória.
+
+O piloto já possui curvas em S e relevo físico: subida até 14 m seguida de
+descida, com inclinação máxima aproximada de 7%, mantendo os dois pátios planos.
+Malha visual e colisão usam os mesmos nós a cada 8 m; não há rampa visual sobre
+um chão de colisão plano. Números e altitudes são originais para testar direção,
+sem pretensão de reproduzir o relevo real dessas cidades.
+
 Não fixar a escala da imagem anexada. Usar inicialmente metas de **tempo de
 viagem**, propostas para teste: frete inicial 3–5 minutos, regional 8–15 e
 longa distância 20–40. Ajustar no mundo dirigível com o caminhão atual.
@@ -163,6 +181,10 @@ de serviços, prefabs, licenças de eventuais dados geográficos incorporados,
 empresas/cargas e implementação da política de início no servidor/cliente.
 
 ## Referências e origem
+
+- Desenho “Mapa Rodoviário do Sul do Brasil”, enviado nesta conversa: referência
+  de organização dos corredores e polos, mantendo União da Vitória/Porto União
+  como acréscimos do projeto. A imagem e seus escudos não foram incorporados.
 
 - Dois desenhos enviados pelo proprietário nesta conversa (10/11/2026):
   referências de conceito; os arquivos de imagem não foram incorporados ao

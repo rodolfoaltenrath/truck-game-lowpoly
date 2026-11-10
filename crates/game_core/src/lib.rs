@@ -20,6 +20,7 @@ mod session_hub_tests;
 pub mod session_protocol;
 pub mod session_timing;
 pub mod south;
+pub mod terrain;
 pub mod traffic;
 pub mod world;
 

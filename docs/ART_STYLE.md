@@ -57,6 +57,12 @@ separada; o vão inferior da cabine e os para-lamas respeitam a suspensão.
 
 ## Renderização nativa
 
+O relevo dirigível do piloto vem de `game_core::terrain`: desenho, pintura e
+colisão compartilham o perfil de altura e as curvas. Faces de solo são cortadas
+nos nós do perfil antes da transformação, mantendo as faixas adjacentes sem
+sobreposição. Árvores e cenário acompanham a elevação; caminhão e rodas conservam
+sua geometria local e recebem a pose da simulação.
+
 Revisão visual com abertura confirmada pelo proprietário: copas de oito
 lados, pinheiros em camadas, morros decorativos, galpões e detalhes da carroceria.
 A estrada usa faces horizontais adjacentes, incluindo a pintura; vegetação em

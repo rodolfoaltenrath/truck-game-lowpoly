@@ -7,5 +7,6 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
+game_core = { path = "../game_core" }
 rapier3d = { version = "=0.32.0", features = ["enhanced-determinism"] }
 serde.workspace = true

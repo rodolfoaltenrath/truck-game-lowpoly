@@ -8,6 +8,9 @@ O [mapa do Sul](docs/MAPA_SUL.md), incluindo União da Vitória/Porto União com
 polo inicial multiplayer, tem um primeiro circuito piloto. O executável oferece
 dois pátios de treino, estrada direta e retorno alternativo. O atlas regional
 contém as 32 cidades planejadas; os demais corredores ainda não existem em 3D.
+O piloto tem curvas em S, subida e descida de até 14 m, com rampas abaixo de 7%
+e colisão acompanhando a pista. A expansão entre cidades adotará **1:20**;
+veículos, pistas e áreas de manobra permanecem em escala real.
 
 ## Executar
 

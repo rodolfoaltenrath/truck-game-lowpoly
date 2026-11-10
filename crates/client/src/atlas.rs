@@ -146,7 +146,7 @@ impl Atlas {
                 ]),
         )
         .build(&mut ui.build_ctx());
-        let local_roads = [
+        let local_roads: [([f32; 2], [f32; 2]); 6] = [
             ([0.0, -1000.0], [0.0, 200.0]),
             ([240.0, -1000.0], [240.0, 200.0]),
             ([0.0, -1000.0], [240.0, -1000.0]),
@@ -159,10 +159,25 @@ impl Atlas {
             Color::opaque(235, 157, 62),
             local_roads
                 .into_iter()
-                .map(|(a, b)| Primitive::Line {
-                    begin: local_point(a),
-                    end: local_point(b),
-                    thickness: 5.0,
+                .flat_map(|(a, b)| {
+                    let count = ((a[1] - b[1]).abs() / game_core::terrain::STEP)
+                        .ceil()
+                        .max(1.0) as usize;
+                    let sample = move |i: usize| {
+                        let t = i as f32 / count as f32;
+                        let p = game_core::terrain::warp([
+                            a[0] + (b[0] - a[0]) * t,
+                            0.0,
+                            a[1] + (b[1] - a[1]) * t,
+                        ])
+                        .expect("circuito interno válido");
+                        local_point([p[0], p[2]])
+                    };
+                    (0..count).map(move |i| Primitive::Line {
+                        begin: sample(i),
+                        end: sample(i + 1),
+                        thickness: 5.0,
+                    })
                 })
                 .collect(),
         );

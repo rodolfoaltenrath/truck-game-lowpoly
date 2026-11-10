@@ -103,6 +103,20 @@ impl Simulation {
                 .friction(0.9)
                 .build(),
         );
+        let terrain = game_core::terrain::collision_mesh();
+        colliders.insert(
+            ColliderBuilder::trimesh(
+                terrain
+                    .vertices
+                    .into_iter()
+                    .map(Vector::from_array)
+                    .collect(),
+                terrain.triangles,
+            )
+            .expect("relevo interno válido")
+            .friction(0.9)
+            .build(),
+        );
         let truck = bodies.insert(
             RigidBodyBuilder::dynamic()
                 .translation(Vector::new(0.0, 1.6, 0.0))
@@ -386,7 +400,13 @@ impl Simulation {
             pose.rotation[3],
         )
         .normalize();
-        let p = Vector::from_array(pose.position);
+        let mut p = Vector::from_array(pose.position);
+        let height = game_core::terrain::profile(p.z)
+            .expect("pose validada")
+            .height;
+        if p.y < height + 0.7 {
+            p.y = height + 1.6;
+        }
         self.bodies[self.truck].set_translation(p, true);
         self.bodies[self.truck].set_rotation(q, true);
         self.bodies[self.trailer].set_translation(p + q * Vector::new(0.0, 0.29, -6.75), true);
@@ -428,6 +448,43 @@ fn controller(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn hill_collision_supports_all_wheels_on_ascent_crest_and_descent() {
+        for z in [-640.0, -560.0, -400.0, -240.0, -160.0] {
+            let height = game_core::terrain::profile(z).unwrap().height;
+            let next = game_core::terrain::profile(z + 1.0).unwrap().height;
+            let angle = -(next - height).atan();
+            let q = Rotation::from_rotation_x(angle).to_array();
+            let mut sim = Simulation::new();
+            sim.restore(Pose {
+                position: [0.0, 1.6, z],
+                rotation: q,
+            })
+            .unwrap();
+            for _ in 0..360 {
+                sim.step(Input {
+                    handbrake: true,
+                    ..Input::default()
+                });
+            }
+            let s = sim.snapshot();
+            let ground = game_core::terrain::profile(s.truck.position[2])
+                .unwrap()
+                .height;
+            assert!(
+                s.truck.position[1] > ground + 0.7 && s.truck.position[1] < ground + 1.7,
+                "{z}: {s:?}"
+            );
+            assert!(s.wheels.iter().all(|w| w.contact), "{z}: {s:?}");
+            for wheel in &s.wheels {
+                let floor = game_core::terrain::profile(wheel.center[2]).unwrap().height;
+                assert!(
+                    (wheel.center[1] - floor - 0.52).abs() < 0.08,
+                    "{z}: {wheel:?}"
+                );
+            }
+        }
+    }
     #[test]
     fn rests_drives_brakes_and_keeps_trailer_attached() {
         let mut s = Simulation::new();

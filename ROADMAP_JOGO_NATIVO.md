@@ -22,6 +22,28 @@ WebSocket é somente o transporte de rede; não requer navegador. OpenGL foi
 escolhido para alcançar também hardware antigo. Isso não garante ganho de
 FPS: desempenho e compatibilidade precisam ser medidos no executável.
 
+## Relevo físico e escala regional
+
+- Proprietário definiu escala **1:20 entre cidades**. Caminhão, pista e pátios
+  permanecem em 1:1; atlas atual continua esquemático. Antes de construir toda
+  a rede nessa escala, ampliar limites de coordenadas/protocolo e implementar
+  carregamento por regiões. As 32 cidades ainda não são todas dirigíveis.
+- `game_core::terrain`: trecho piloto com curvas em S para os dois lados,
+  elevação de 14 m e inclinação abaixo de 7%, amostrado em nós de 8 m. Pátios
+  e acessos de carga mantidos planos. Perfil próprio, sem dados geográficos externos.
+- Visual, pintura, cenário e colisão compartilham o mesmo perfil interpolado.
+  Colisão acrescenta apenas 160 triângulos. Mapa local acompanha as curvas reais.
+  Poses antigas abaixo do novo terreno são elevadas na restauração; poses válidas
+  acima da superfície são preservadas.
+- Windows GNU: **58 testes do workspace passaram** e Clippy com todos os alvos
+  passou. Cobrem altura/curvas/inclinação, continuidade dos pátios, correspondência
+  do desenho com o perfil físico, orçamento e orientação das faces, e seis rodas
+  apoiadas em subida, crista e descida. Teste manual de condução ainda pendente.
+- Smoke gráfico na Intel HD 4000: caminhão sobre a crista permaneceu a ~15,08 m
+  de altura (terreno de 14 m), com seis rodas apoiadas e baú engatado; captura do
+  circuito e do mapa local curvo inspecionadas. Não é benchmark comparativo nem
+  validação humana de uma viagem completa. Pacote portátil não regenerado.
+
 ## Atlas regional e primeiro circuito de frete
 
 - Rede própria em `game_core::south`: 32 cidades (11 PR, 11 SC, 10 RS),
@@ -30,7 +52,7 @@ FPS: desempenho e compatibilidade precisam ser medidos no executável.
 - Atlas vetorial nativo: seleção de destino/origem, preferências e destaque do
   caminho. Coordenadas e distâncias esquemáticas, pedágios fictícios/provisórios;
   os corredores regionais ainda não são estradas 3D.
-- Circuito piloto plano: pátios de União da Vitória e Porto União separados por
+- Primeira versão do circuito era plana: pátios de União da Vitória e Porto União separados por
   800 m, ligação direta e circuito alternativo. Mapa local com posição do jogador.
   Novas partidas começam no pátio; posições salvas continuam preservadas. R volta
   ao pátio e reinicia o treino. Prédios, bombas e relevo são decorativos sem colisões.

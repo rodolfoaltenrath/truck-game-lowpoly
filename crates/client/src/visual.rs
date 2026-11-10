@@ -62,8 +62,15 @@ struct Geometry {
 #[derive(Default)]
 pub struct Batch {
     parts: BTreeMap<u32, Geometry>,
+    terrain: bool,
 }
 impl Batch {
+    fn terrain() -> Self {
+        Self {
+            terrain: true,
+            ..Self::default()
+        }
+    }
     fn pilot_ground(&mut self, c: u32, x0: f32, x1: f32, z0: f32, z1: f32) {
         let overlays = PILOT_PAVEMENT
             .iter()
@@ -98,16 +105,29 @@ impl Batch {
     }
     // Mosaico horizontal: a pintura substitui o asfalto, sem z-fighting.
     fn ground(&mut self, c: u32, x0: f32, x1: f32, z0: f32, z1: f32) {
-        self.face(
-            c,
-            vec![
-                V::new(x0, 0.0, z0),
-                V::new(x0, 0.0, z1),
-                V::new(x1, 0.0, z1),
-                V::new(x1, 0.0, z0),
-            ],
-            V::new((x0 + x1) * 0.5, -1.0, (z0 + z1) * 0.5),
-        );
+        let mut cuts = vec![z0, z1];
+        if self.terrain {
+            for i in 0..=game_core::terrain::SEGMENTS {
+                let z = game_core::terrain::START + i as f32 * game_core::terrain::STEP;
+                if z > z0 && z < z1 {
+                    cuts.push(z);
+                }
+            }
+            cuts.sort_by(f32::total_cmp);
+        }
+        for pair in cuts.windows(2) {
+            let [z0, z1] = [pair[0], pair[1]];
+            self.face(
+                c,
+                vec![
+                    V::new(x0, 0.0, z0),
+                    V::new(x0, 0.0, z1),
+                    V::new(x1, 0.0, z1),
+                    V::new(x1, 0.0, z0),
+                ],
+                V::new((x0 + x1) * 0.5, -1.0, (z0 + z1) * 0.5),
+            );
+        }
     }
 
     // Anéis de oito lados; normais independentes conservam as facetas.
@@ -142,6 +162,19 @@ impl Batch {
     }
 
     fn face(&mut self, c: u32, mut points: Vec<V>, center: V) {
+        let center = if self.terrain {
+            for p in &mut points {
+                *p = V::from(
+                    game_core::terrain::warp([p.x, p.y, p.z]).expect("geometria interna válida"),
+                );
+            }
+            V::from(
+                game_core::terrain::warp([center.x, center.y, center.z])
+                    .expect("centro interno válido"),
+            )
+        } else {
+            center
+        };
         let mut normal = (points[1] - points[0])
             .cross(&(points[2] - points[0]))
             .normalize();
@@ -477,7 +510,7 @@ pub fn set_pose(graph: &mut Graph, h: Handle<Node>, p: Pose) {
 }
 
 fn road_geometry() -> Batch {
-    let mut road = Batch::default();
+    let mut road = Batch::terrain();
     // Superfícies sem espessura: duas faces por faixa, em vez de 44 por caixa.
     // Acostamento e linhas ocupam intervalos distintos, todos no nível da física.
     for side in [-1.0_f32, 1.0] {
@@ -524,7 +557,7 @@ impl Scenery {
 }
 pub fn world(scene: &mut Scene) -> Scenery {
     let mut chunks = Vec::new();
-    let mut horizon = Batch::default();
+    let mut horizon = Batch::terrain();
     let mut materials = BTreeMap::new();
     scene.rendering_options.ambient_lighting_color = color(0xa9b9c7);
     scene.rendering_options.environment_lighting_source =
@@ -540,7 +573,7 @@ pub fn world(scene: &mut Scene) -> Scenery {
     // Lotes espaciais independentes: o frustum pode descartar trechos inteiros.
     // Vegetação e morros são decorativos, fora da pista; não simulam colisões.
     for chunk in -12_i32..18 {
-        let mut b = Batch::default();
+        let mut b = Batch::terrain();
         let base = chunk as f32 * 200.0;
         for i in 0..8_i32 {
             let seed = (chunk * 97 + i * 31).unsigned_abs();
@@ -592,7 +625,7 @@ pub fn world(scene: &mut Scene) -> Scenery {
     }
     horizon.build_with_materials("Horizonte simplificado", &mut scene.graph, &mut materials);
     // Pequeno conjunto rural original, com telhados, portões e beirais legíveis.
-    let mut village = Batch::default();
+    let mut village = Batch::terrain();
     for i in 0..4 {
         let x = -36.0 - (i % 2) as f32 * 18.0;
         let z = 100.0 + i as f32 * 40.0;
@@ -604,7 +637,7 @@ pub fn world(scene: &mut Scene) -> Scenery {
         }
     }
     village.build_with_materials("Galpões rurais", &mut scene.graph, &mut materials);
-    let mut hub = Batch::default();
+    let mut hub = Batch::terrain();
     for depot in game_core::pilot::DEPOTS {
         let z = depot.position[1];
         hub.cuboid(0xe3d8bb, [18.0, 6.0, 36.0], [126.0, 3.0, z], 0.12);
@@ -641,14 +674,18 @@ mod tests {
         },
     };
     #[test]
-    fn road_is_flat_upward_and_within_geometry_budget() {
+    fn road_follows_physics_profile_and_stays_upward_within_geometry_budget() {
         let road = road_geometry();
         let mut count = 0;
         let mut area = 0.0_f64;
         for part in road.parts.values() {
             for triangle in &part.triangles {
                 let [a, b, c] = triangle.0.map(|i| part.vertices[i as usize].position);
-                assert!(a.y == 0.0 && b.y == 0.0 && c.y == 0.0);
+                for p in [a, b, c] {
+                    assert!(
+                        (p.y - game_core::terrain::profile(p.z).unwrap().height).abs() < 0.0001
+                    );
+                }
                 let normal = (b - a).cross(&(c - a));
                 assert!(normal.y > 0.0, "face invertida ou degenerada");
                 area += f64::from(normal.y) * 0.5;
@@ -656,7 +693,7 @@ mod tests {
             }
         }
         assert!(
-            count < 12000,
+            count < 16000,
             "pintura e solo excederam o orçamento: {count}"
         );
         let expected = 3200.0 * 12000.0;

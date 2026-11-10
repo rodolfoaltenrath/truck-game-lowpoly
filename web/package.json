@@ -1,0 +1,23 @@
+{
+  "name": "caminhao-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "check": "tsc --noEmit && biome check src",
+    "format": "biome check --write src e2e",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^9.35.0",
+    "@dimforge/rapier3d-compat": "^0.21.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
+    "@playwright/test": "^1.65.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.7"
+  }
+}

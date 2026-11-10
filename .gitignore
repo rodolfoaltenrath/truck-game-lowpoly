@@ -1,0 +1,22 @@
+# Rust
+/target/
+
+# Web
+node_modules/
+web/dist/
+web/test-results/
+web/playwright-report/
+
+# Assets gerados / conteúdo de terceiros não versionado
+/assets/
+/assets-src/
+*.scs
+
+# Sistema / editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Código do mod antigo: já versionado no repo 18wos-across-america-mp; aqui só cópia local para extração
+/legacy/

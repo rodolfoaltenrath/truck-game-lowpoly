@@ -449,6 +449,45 @@ fn controller(
 mod tests {
     use super::*;
     #[test]
+    fn repeated_turns_braking_and_reverse_keep_simulation_finite() {
+        for z in [0.0, -160.0, -400.0, -640.0] {
+            let mut sim = Simulation::new();
+            sim.restore(Pose {
+                position: [0.0, 1.6, z],
+                rotation: [0.0, 0.0, 0.0, 1.0],
+            })
+            .unwrap();
+            for tick in 0..7200 {
+                let phase = (tick / 180) % 6;
+                sim.step(Input {
+                    throttle: if phase < 2 || phase == 4 { 1.0 } else { 0.0 },
+                    brake: if phase == 2 || phase == 3 { 1.0 } else { 0.0 },
+                    steer: match phase {
+                        1 => 0.7,
+                        2 => 0.4,
+                        4 => -0.7,
+                        _ => 0.0,
+                    },
+                    handbrake: phase == 5,
+                });
+                if tick % 30 == 0 {
+                    let s = sim.snapshot();
+                    assert!(
+                        s.truck.validate().is_ok() && s.trailer.validate().is_ok(),
+                        "z={z} tick={tick}: {s:?}"
+                    );
+                    assert!(s.speed.is_finite() && s.rpm.is_finite());
+                    for wheel in s.wheels.iter().chain(&s.trailer_wheels) {
+                        assert!(
+                            wheel.center.iter().all(|v| v.is_finite())
+                                && wheel.rotation.is_finite()
+                        );
+                    }
+                }
+            }
+        }
+    }
+    #[test]
     fn hill_collision_supports_all_wheels_on_ascent_crest_and_descent() {
         for z in [-640.0, -560.0, -400.0, -240.0, -160.0] {
             let height = game_core::terrain::profile(z).unwrap().height;

@@ -58,3 +58,22 @@ do protótipo web ou de WSLg com desempenho desse driver OpenGL.
 Para capturas automatizadas dos mapas, o cliente aceita `--smoke-frames 90
 --smoke-map local` ou `--smoke-map regional`, combinados com `--screenshot caminho.png`
 e `--report caminho.json`. Esses modos são incompatíveis com `--smoke-drive`.
+
+## Janelas de teste e diagnóstico
+
+`--smoke-frames N` fecha a janela ao completar N quadros, inclusive durante
+direção manual. `build-native.ps1 -Smoke` usa 600 quadros; para jogar normalmente,
+use `dev.ps1`, que não impõe esse limite. `--smoke-maneuvers` alterna aceleração,
+direção, frenagem e ré para reprodução automática e também exige limite de quadros.
+
+No próximo uso do cliente atualizado, `last-session.txt` registra estado recente
+e motivo de encerramento. Um panic Rust gera `crash-latest.txt` com backtrace.
+Ambos ficam junto de `settings.json`, respeitando `--data-dir`. Na pasta padrão:
+
+```powershell
+Get-Content "$env:LOCALAPPDATA/TruckGame/SulDoBrasil/data/last-session.txt"
+```
+
+Um arquivo que permanece em "executando" após o processo sumir não identifica a
+causa: pode ser encerramento externo ou falha nativa sem panic Rust. O código
+de saída e os registros do sistema ainda podem ser necessários nesse caso.

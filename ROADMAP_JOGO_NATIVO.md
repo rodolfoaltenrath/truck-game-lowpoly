@@ -22,6 +22,30 @@ WebSocket é somente o transporte de rede; não requer navegador. OpenGL foi
 escolhido para alcançar também hardware antigo. Isso não garante ganho de
 FPS: desempenho e compatibilidade precisam ser medidos no executável.
 
+## Diagnóstico de encerramento
+
+- Relato de fechamento durante direção: o proprietário esclareceu que a janela
+  havia aberto automaticamente, compatível com os smokes iniciados pelo agente
+  e encerrados por limite de quadros. Não foi confirmado um crash nessa sessão.
+  Avisar explicitamente antes de abrir novas janelas de teste.
+- Reprodução isolada com cópia da pose do proprietário: 600 quadros parado e
+  1.200 com aceleração concluíram com código 0. Física estressada por 28.800 passos
+  com curvas, frenagem e ré em quatro posições do terreno manteve poses finitas.
+- Cliente agora registra `last-session.txt` (estado/encerramento) e, em panic Rust,
+  `crash-latest.txt` com backtrace, no diretório de dados. Arquivos sobrescritos,
+  limitados por caracteres e sem envio de dados. Não captura falhas nativas do
+  driver; estado "executando" deixado após fechar apenas indica saída não registrada.
+- Novo `--smoke-maneuvers` automatiza aceleração, curvas, frenagem e ré; depende
+  de `--smoke-frames`. O script avisa sobre fechamento automático de `-Smoke`.
+  Modo normal `dev.ps1` continua sem limite de quadros e informa o código de saída.
+- Corrigida uma corrida independente no encerramento da rede: o worker agora
+  captura a solicitação de parada antes de drenar a fila, para transmitir o Leave
+  enfileirado antes de encerrar. Essa falha não explica o suposto crash ao dirigir.
+- **60 testes do workspace passaram**, incluindo panic real em subprocesso com
+  relatório local, estresse da física e saída da sessão WebSocket. Clippy passou.
+  Build incremental do cliente concluído; sem novo pacote portátil ou novos smokes
+  gráficos após o esclarecimento do proprietário.
+
 ## Relevo físico e escala regional
 
 - Proprietário definiu escala **1:20 entre cidades**. Caminhão, pista e pátios

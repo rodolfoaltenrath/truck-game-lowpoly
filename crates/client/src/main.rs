@@ -60,6 +60,9 @@ struct Options {
     /// Acelera em linha reta durante o smoke para verificar integração física/render.
     #[arg(long, requires = "smoke_frames")]
     smoke_drive: bool,
+    /// Alterna aceleração, direção, freio e ré para testar estabilidade.
+    #[arg(long, requires = "smoke_frames", conflicts_with_all = ["smoke_drive", "smoke_map"])]
+    smoke_maneuvers: bool,
     /// Abre o mapa no smoke, para inspeção da interface sem dirigir.
     #[arg(long, requires = "smoke_frames", conflicts_with = "smoke_drive", value_parser = ["local", "regional"])]
     smoke_map: Option<String>,
@@ -117,6 +120,7 @@ struct State {
     dragging: bool,
     cursor: Option<(f64, f64)>,
     gpu: String,
+    exit_reason: Option<&'static str>,
 }
 impl Plugin for Game {
     fn init(&mut self, _: Option<&str>, ctx: PluginContext) -> GameResult {
@@ -211,6 +215,7 @@ impl Plugin for Game {
             dragging: false,
             cursor: None,
             gpu: String::new(),
+            exit_reason: None,
         });
         Ok(())
     }
@@ -262,7 +267,10 @@ impl Plugin for Game {
                     };
                     s.distance = (s.distance - amount * 1.5).clamp(6.0, 45.0);
                 }
-                WindowEvent::CloseRequested => ctx.loop_controller.exit(),
+                WindowEvent::CloseRequested => {
+                    s.exit_reason = Some("fechamento solicitado pela janela/sistema");
+                    ctx.loop_controller.exit();
+                }
                 WindowEvent::KeyboardInput { event, .. } => {
                     if let PhysicalKey::Code(key) = event.physical_key {
                         if s.atlas.open {
@@ -289,7 +297,10 @@ impl Plugin for Game {
                                         s.cursor = None;
                                         s.atlas.toggle(ctx.user_interfaces.first());
                                     }
-                                    KeyCode::Escape => ctx.loop_controller.exit(),
+                                    KeyCode::Escape => {
+                                        s.exit_reason = Some("tecla Escape");
+                                        ctx.loop_controller.exit();
+                                    }
                                     KeyCode::KeyR => {
                                         s.reset_to_hub();
                                     }
@@ -356,6 +367,9 @@ impl Plugin for Game {
         if self.options.as_ref().is_some_and(|o| o.smoke_drive) {
             input.throttle = 1.0;
         }
+        if self.options.as_ref().is_some_and(|o| o.smoke_maneuvers) {
+            input = maneuver_input(s.frames);
+        }
         s.accumulator = (s.accumulator + ctx.dt).min(DT * 5.0);
         while s.accumulator >= DT {
             s.previous = s.current.clone();
@@ -371,6 +385,19 @@ impl Plugin for Game {
         }
         if s.saved_at.elapsed().as_secs() >= 2 {
             s.save();
+            if s.exit_reason.is_none() {
+                diagnostics::marker(&format!(
+                    "executando · quadros {} · posição {:?} · velocidade {:.2} m/s · input throttle={:.1} brake={:.1} steer={:.2} handbrake={}\nGPU: {}\nSe o processo fechou e este estado permaneceu, não houve saída normal registrada.",
+                    s.frames,
+                    s.current.truck.position,
+                    s.current.speed,
+                    input.throttle,
+                    input.brake,
+                    input.steer,
+                    input.handbrake,
+                    s.gpu
+                ));
+            }
             s.saved_at = Instant::now();
         }
         Ok(())
@@ -508,6 +535,7 @@ impl Plugin for Game {
                 )
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send>)?;
             }
+            s.exit_reason = Some("smoke concluído: limite de quadros atingido");
             ctx.loop_controller.exit();
         }
         Ok(())
@@ -594,6 +622,9 @@ impl Drop for Game {
     fn drop(&mut self) {
         if let Some(s) = self.state.as_ref() {
             s.save();
+            if !std::thread::panicking() {
+                diagnostics::marker(s.exit_reason.unwrap_or("executor encerrado sem solicitação registrada; verificar console e código de saída"));
+            }
         }
     }
 }
@@ -626,6 +657,7 @@ fn main() -> anyhow::Result<()> {
     }
     std::fs::create_dir_all(&data_dir)?;
     std::env::set_current_dir(data_dir)?;
+    diagnostics::install_crash_handler();
     let event_loop = EventLoop::new()?;
     let mut executor = Executor::from_params(
         Some(event_loop),
@@ -648,4 +680,35 @@ fn main() -> anyhow::Result<()> {
     });
     executor.run();
     Ok(())
+}
+fn maneuver_input(frame: u32) -> Input {
+    match (frame / 90) % 6 {
+        0 => Input {
+            throttle: 1.0,
+            ..Input::default()
+        },
+        1 => Input {
+            throttle: 0.6,
+            steer: 0.55,
+            ..Input::default()
+        },
+        2 => Input {
+            brake: 1.0,
+            steer: 0.4,
+            ..Input::default()
+        },
+        3 => Input {
+            brake: 1.0,
+            ..Input::default()
+        },
+        4 => Input {
+            throttle: 1.0,
+            steer: -0.55,
+            ..Input::default()
+        },
+        _ => Input {
+            handbrake: true,
+            ..Input::default()
+        },
+    }
 }

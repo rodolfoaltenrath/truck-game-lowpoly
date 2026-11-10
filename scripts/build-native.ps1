@@ -42,7 +42,12 @@ try {
     }
     if (-not $env:CARGO_BUILD_JOBS) { $env:CARGO_BUILD_JOBS = '2' }
     if ($Mode -eq 'Run') {
-        Invoke-Cargo -CargoArgs @('run', '--locked', '-p', 'truck_client', '--', '--solo')
+        try {
+            Invoke-Cargo -CargoArgs @('run', '--locked', '-p', 'truck_client', '--', '--solo')
+        } finally {
+            Write-Host "Cliente encerrado. Código do Cargo: $LASTEXITCODE"
+            Write-Host 'Diagnóstico local: %LOCALAPPDATA%/TruckGame/SulDoBrasil/data/last-session.txt; panic Rust em crash-latest.txt.'
+        }
         return
     }
     if ($Mode -eq 'Check') {
@@ -56,6 +61,7 @@ try {
     if ($Dev) { $packageArgs += '--dev' }
     Invoke-Cargo -CargoArgs $packageArgs
     if ($Smoke) {
+        Write-Host 'Teste automatizado: o jogo fechará sozinho após 600 quadros. Para jogar sem limite, use scripts/dev.ps1.'
         $binary = Join-Path $root 'dist/sul-do-brasil-windows-x86_64/truck_client.exe'
         $review = Join-Path $root 'target/native-review'
         New-Item -ItemType Directory -Force -Path $review | Out-Null

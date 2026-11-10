@@ -1,5 +1,26 @@
 use fyrox::{engine::InitializedGraphicsContext, graphics_gl::server::GlGraphicsServer};
 use glow::HasContext;
+/// Arquivos pequenos e sobrescritos no diretório de dados; nada é enviado pela rede.
+pub fn marker(message: &str) {
+    let bounded: String = message.chars().take(4096).collect();
+    let _ = std::fs::write("last-session.txt", bounded);
+}
+pub fn install_crash_handler() {
+    marker("iniciando cliente");
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let report = format!(
+            "Rust panic · {} · {}\n{info}\n{}",
+            env!("CARGO_PKG_VERSION"),
+            std::env::consts::OS,
+            std::backtrace::Backtrace::force_capture()
+        );
+        let bounded: String = report.chars().take(32768).collect();
+        let _ = std::fs::write("crash-latest.txt", bounded);
+        marker("panic Rust: consulte crash-latest.txt");
+        previous(info);
+    }));
+}
 pub fn gpu(graphics: &InitializedGraphicsContext) -> String {
     let Some(server) = graphics
         .renderer
@@ -66,4 +87,48 @@ pub fn capture(
     image::imageops::flip_vertical_in_place(&mut image);
     image.save(path)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn rust_panic_leaves_a_bounded_local_report() {
+        const CHILD: &str = "TRUCK_CRASH_REPORT_TEST";
+        if std::env::var_os(CHILD).is_some() {
+            super::install_crash_handler();
+            panic!("diagnóstico de teste, não é uma sessão de jogo");
+        }
+        let folder = std::env::temp_dir().join(format!(
+            "truck-crash-report-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&folder).unwrap();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "diagnostics::tests::rust_panic_leaves_a_bounded_local_report",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .current_dir(&folder)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        let report = std::fs::read_to_string(folder.join("crash-latest.txt")).unwrap();
+        assert!(report.contains("diagnóstico de teste"));
+        assert!(report.len() <= 131072);
+        assert!(
+            std::fs::read_to_string(folder.join("last-session.txt"))
+                .unwrap()
+                .contains("panic Rust")
+        );
+        for file in ["crash-latest.txt", "last-session.txt"] {
+            std::fs::remove_file(folder.join(file)).unwrap();
+        }
+        std::fs::remove_dir(folder).unwrap();
+    }
 }

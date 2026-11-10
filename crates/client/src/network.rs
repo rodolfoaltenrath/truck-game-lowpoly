@@ -173,7 +173,7 @@ impl Drop for Network {
         for f in self.client.poll(now).0 {
             self.send(&f);
         }
-        self.stop.store(true, Ordering::Relaxed);
+        self.stop.store(true, Ordering::Release);
         let deadline = Instant::now() + Duration::from_millis(150);
         while self.worker.as_ref().is_some_and(|w| !w.is_finished()) && Instant::now() < deadline {
             thread::sleep(Duration::from_millis(5));
@@ -286,6 +286,9 @@ fn transport(
                 return;
             }
             'connected: loop {
+                // Capturar antes de esvaziar: se o stop chegar depois do último
+                // try_recv, a próxima volta ainda deve transmitir o Leave.
+                let stopping = stop.load(Ordering::Acquire);
                 for _ in 0..32 {
                     match output.try_recv() {
                         Ok(bytes) => {
@@ -296,7 +299,7 @@ fn transport(
                         Err(_) => break,
                     }
                 }
-                if stop.load(Ordering::Relaxed) {
+                if stopping {
                     break;
                 }
                 match ws.read() {

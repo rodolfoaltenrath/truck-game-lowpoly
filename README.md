@@ -5,8 +5,9 @@ física Rapier e servidor Rust. Sem Electron, WebView ou navegador no executáve
 
 Direção vigente e pendências: [roadmap nativo](ROADMAP_JOGO_NATIVO.md).
 O [mapa do Sul](docs/MAPA_SUL.md), incluindo União da Vitória/Porto União como
-polo inicial multiplayer, ainda está em projeto. O executável usa uma rodovia
-de validação; não contém as 32 cidades planejadas.
+polo inicial multiplayer, tem um primeiro circuito piloto. O executável oferece
+dois pátios de treino, estrada direta e retorno alternativo. O atlas regional
+contém as 32 cidades planejadas; os demais corredores ainda não existem em 3D.
 
 ## Executar
 
@@ -73,8 +74,12 @@ preferências e posição em uma pasta escolhida, inclusive junto ao executável
 | Frear / ré ao segurar parado | S / ↓ |
 | Direção | A/D / ←/→ |
 | Freio de mão | Espaço |
+| Frete de treino: aceitar/carregar/descarregar | E |
+| Mapa local / fechar mapa | M |
+| Alternar mapa local e planejamento regional | Tab, com mapa aberto |
+| Destino / origem / preferência de rota no atlas regional | ↑/↓ / O / Espaço |
 | Engatar/desengatar próximo e parado | T |
-| Reiniciar conjunto na origem | R |
+| Voltar ao pátio e reiniciar o treino | R |
 | Câmera externa, frontal, aérea | C |
 | Orbitar câmera externa / zoom | Arrastar botão direito / roda do mouse |
 | Pintura | P |
@@ -85,6 +90,21 @@ preferências e posição em uma pasta escolhida, inclusive junto ao executável
 O preset inicial prioriza leveza e nitidez, sem redução automática de resolução.
 Gamepad, áudio, outros tipos de reboque e engate automático ainda precisam de
 port. Consulte o roadmap antes de considerar equivalentes os marcos web antigos.
+
+## Primeiro frete de treino
+
+Pressione **R** para voltar ao pátio de União da Vitória (também disponível pelo
+mapa). Com cavalo e baú parados na área verde, pressione **E** e aguarde 2 segundos.
+Abra **M** para se orientar: saia do pátio para oeste e siga para sul até Porto
+União; o circuito a leste oferece outro caminho. Pare o conjunto na área verde
+do segundo pátio e pressione **E** para descarregar. Após concluir, E prepara
+o frete inverso, e outro E inicia a carga.
+
+Mover ou desengatar o conjunto durante carga/descarga cancela a operação. O treino
+é local e reinicia ao sair ou usar R; não dá dinheiro nem altera carreira ou estado
+do servidor. Os prédios e bombas ainda são decorativos, sem colisões ou serviços
+funcionais. O multiplayer continua sincronizando veículos; fretes compartilhados
+e reserva de vagas dependem de implementação autoritativa.
 
 ## Validar
 

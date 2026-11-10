@@ -54,3 +54,7 @@ Nenhum binário dessas ferramentas entra no Git ou no pacote do jogo.
 O Windows desta máquina informa Intel HD Graphics 4000. A validação do port
 deve registrar a execução nativa real, sem confundir resultados de SwiftShader
 do protótipo web ou de WSLg com desempenho desse driver OpenGL.
+
+Para capturas automatizadas dos mapas, o cliente aceita `--smoke-frames 90
+--smoke-map local` ou `--smoke-map regional`, combinados com `--screenshot caminho.png`
+e `--report caminho.json`. Esses modos são incompatíveis com `--smoke-drive`.

@@ -22,7 +22,39 @@ WebSocket é somente o transporte de rede; não requer navegador. OpenGL foi
 escolhido para alcançar também hardware antigo. Isso não garante ganho de
 FPS: desempenho e compatibilidade precisam ser medidos no executável.
 
-## Revisão visual — validação executável adiada
+## Atlas regional e primeiro circuito de frete
+
+- Rede própria em `game_core::south`: 32 cidades (11 PR, 11 SC, 10 RS),
+  47 ligações bidirecionais e 12 áreas de apoio propostas. Busca de rotas curta,
+  rápida e sem pedágio, com simulação de um trecho fechado e recusas tipadas.
+- Atlas vetorial nativo: seleção de destino/origem, preferências e destaque do
+  caminho. Coordenadas e distâncias esquemáticas, pedágios fictícios/provisórios;
+  os corredores regionais ainda não são estradas 3D.
+- Circuito piloto plano: pátios de União da Vitória e Porto União separados por
+  800 m, ligação direta e circuito alternativo. Mapa local com posição do jogador.
+  Novas partidas começam no pátio; posições salvas continuam preservadas. R volta
+  ao pátio e reinicia o treino. Prédios, bombas e relevo são decorativos sem colisões.
+- Vegetação limitada por proximidade a no máximo 11 lotes de 200 m, além do
+  descarte pelo frustum; morros agrupados em um horizonte separado. A seleção
+  muda por célula, sem reconstruir malhas. Isso ainda não é streaming de memória:
+  os lotes permanecem residentes. Não há benchmark comparativo de FPS.
+- Primeiro frete local: aceitar, carregar, dirigir, descarregar e preparar retorno.
+  Carga/descarga leva 2 s com cavalo e baú engatados e parados na área de 48 × 48 m;
+  movimento, saída da área ou desengate cancela. Sem dinheiro, carreira, persistência
+  do treino, sincronização de fretes ou vagas reservadas pelo servidor.
+- Validação Windows GNU: suíte workspace com **55 testes passou**, incluindo
+  conectividade entre todos os pares de cidades, alternativas sem pedágio,
+  desvio da travessia inicial, ciclo do frete, cancelamentos, entradas inválidas,
+  mosaico/área/orçamento da estrada, folga dos seis pneus e rede WebSocket real.
+  Clippy do workspace com todos os alvos passou. Builds incrementais do cliente
+  reaproveitaram a engine (aproximadamente 15–20 s nas execuções observadas).
+- Smokes gráficos Windows/OpenGL 3.3 na Intel HD 4000: mapas local e regional
+  (90 quadros cada) e circuito (120 quadros) concluíram com seis contatos de roda.
+  Capturas inspecionadas; marcador dinâmico, centralização e caracteres corrigidos.
+  Essas execuções curtas não são benchmark. Direção e entrega completas com pessoa,
+  avaliação em Linux e pacote portátil atualizado continuam pendentes.
+
+## Revisão visual e desenvolvimento incremental
 
 Ciclo rápido acrescentado: `scripts/dev.ps1` executa somente o cliente no perfil
 dev, reaproveitando o cache existente; `-Check` verifica cliente e testes sem gerar
@@ -47,9 +79,8 @@ O pacote em `dist/` ainda corresponde à base anterior.
 - `scripts/build-native.ps1` prepara GNU local quando aplicável, usa dois trabalhos
   de compilação por padrão, verifica formato, executa testes e Clippy e gera pacote.
   `-Smoke` executa 600 quadros com relatório e captura; `-Dev` usa desenvolvimento.
-- Verificações desta revisão: formatação Rust, análise sintática PowerShell e
-  `git diff --check`. Testes, compilação, inspeção gráfica e medição de FPS ficam
-  pendentes até executar o script. Nenhuma melhoria de desempenho foi medida.
+- Formatação Rust, sintaxe PowerShell, testes e Clippy conferidos na etapa do
+  circuito piloto. Nenhuma melhoria de desempenho foi medida.
 
 ## Primeira base nativa
 
@@ -113,8 +144,8 @@ seu módulo `traffic` mede tráfego de rede, não implementa veículos de IA.
 | F1 — direção | Testes e smoke passaram; ajustar suspensão/câmera com pessoas |
 | F2 — multiplayer | Transporte e eco validados; sessão LAN com pessoas pendente |
 | F3 — reboques | Baú validado em bancada; outros tipos e engate automático pendentes |
-| F4 — mundo | Rodovia de teste; mapa do Sul e streaming ainda pendentes |
-| F5 — fretes | Pendente |
+| F4 — mundo | Atlas de 32 cidades e circuito piloto; corredores 3D e streaming pendentes |
+| F5 — fretes | Exercício local com carga/entrega; regras autoritativas e economia pendentes |
 | F6 — economia | Pendente, servidor autoritativo |
 | F7 — carreira | Pendente |
 | F8 — ambiente | Pendente |
@@ -130,5 +161,6 @@ Preservar o projeto [MAPA_SUL.md](docs/MAPA_SUL.md): PR, SC e RS, distribuição
 geográfica aproximada, distâncias comprimidas, rotas alternativas e serviços
 revisados. União da Vitória/Porto União será o polo inicial compartilhado,
 com vagas distintas reservadas pelo servidor. As 32 cidades planejadas ainda
-não são dirigíveis. Primeiro estabilizar o port nativo, depois construir esse
-polo e um circuito pequeno antes de expandir o mapa.
+não são dirigíveis. O circuito piloto valida acessos e o ciclo básico; antes de
+expandir, testar direção/entregas manualmente, construir colisões e serviços e
+implementar reserva de vagas e fretes autoritativos.

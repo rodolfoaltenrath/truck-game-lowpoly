@@ -1,6 +1,6 @@
 [package]
 name = "game_core"
-description = "Núcleo compartilhado (sem I/O) entre servidor e cliente web."
+description = "Núcleo compartilhado (sem I/O) entre servidor e cliente nativos."
 version.workspace = true
 edition.workspace = true
 publish.workspace = true

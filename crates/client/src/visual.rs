@@ -34,6 +34,26 @@ pub fn color(c: u32) -> Color {
     Color::opaque((c >> 16) as u8, (c >> 8) as u8, c as u8)
 }
 type V = Vector3<f32>;
+// Retângulos próprios do circuito piloto; os últimos substituem os anteriores.
+// [x mínimo, x máximo, z mínimo, z máximo], todos exatamente no plano da física.
+const PILOT_PAVEMENT: &[([f32; 4], u32)] = &[
+    ([234.0, 246.0, -1006.0, 206.0], 0x444b50),
+    ([-6.0, 246.0, -1006.0, -994.0], 0x444b50),
+    ([-6.0, 246.0, 194.0, 206.0], 0x444b50),
+    ([-6.0, 112.0, -48.0, 48.0], 0x596267),
+    ([-6.0, 112.0, -848.0, -752.0], 0x596267),
+    ([235.0, 235.18, -994.0, 194.0], 0xede5ca),
+    ([244.82, 245.0, -994.0, 194.0], 0xede5ca),
+    ([239.91, 240.09, -994.0, 194.0], 0xe6bd57),
+    ([7.8, 234.0, 194.0, 194.18], 0xede5ca),
+    ([7.8, 234.0, 205.82, 206.0], 0xede5ca),
+    ([7.8, 234.0, -1006.0, -1005.82], 0xede5ca),
+    ([7.8, 234.0, -994.18, -994.0], 0xede5ca),
+    ([36.0, 84.0, -24.0, 24.0], 0x89be93),
+    ([36.3, 83.7, -23.7, 23.7], 0x596267),
+    ([36.0, 84.0, -824.0, -776.0], 0x89be93),
+    ([36.3, 83.7, -823.7, -776.3], 0x596267),
+];
 #[derive(Default)]
 struct Geometry {
     vertices: Vec<StaticVertex>,
@@ -44,6 +64,38 @@ pub struct Batch {
     parts: BTreeMap<u32, Geometry>,
 }
 impl Batch {
+    fn pilot_ground(&mut self, c: u32, x0: f32, x1: f32, z0: f32, z1: f32) {
+        let overlays = PILOT_PAVEMENT
+            .iter()
+            .filter(|(r, _)| r[0] < x1 && r[1] > x0 && r[2] < z1 && r[3] > z0)
+            .collect::<Vec<_>>();
+        if overlays.is_empty() {
+            self.ground(c, x0, x1, z0, z1);
+            return;
+        }
+        let mut xs = vec![x0, x1];
+        let mut zs = vec![z0, z1];
+        for (r, _) in &overlays {
+            xs.extend([r[0].clamp(x0, x1), r[1].clamp(x0, x1)]);
+            zs.extend([r[2].clamp(z0, z1), r[3].clamp(z0, z1)]);
+        }
+        xs.sort_by(f32::total_cmp);
+        xs.dedup();
+        zs.sort_by(f32::total_cmp);
+        zs.dedup();
+        for x in xs.windows(2) {
+            for z in zs.windows(2) {
+                let cx = (x[0] + x[1]) * 0.5;
+                let cz = (z[0] + z[1]) * 0.5;
+                let tint = overlays
+                    .iter()
+                    .rev()
+                    .find(|(r, _)| cx >= r[0] && cx <= r[1] && cz >= r[2] && cz <= r[3])
+                    .map_or(c, |(_, tint)| *tint);
+                self.ground(tint, x[0], x[1], z[0], z[1]);
+            }
+        }
+    }
     // Mosaico horizontal: a pintura substitui o asfalto, sem z-fighting.
     fn ground(&mut self, c: u32, x0: f32, x1: f32, z0: f32, z1: f32) {
         self.face(
@@ -432,7 +484,7 @@ fn road_geometry() -> Batch {
         let mut strip = |c, a: f32, b: f32| {
             let x0 = side * a;
             let x1 = side * b;
-            road.ground(c, x0.min(x1), x0.max(x1), -6000.0, 6000.0);
+            road.pilot_ground(c, x0.min(x1), x0.max(x1), -6000.0, 6000.0);
         };
         strip(0xb9ad70, 7.8, 1600.0);
         strip(0x9a937b, 6.0, 7.8);
@@ -442,13 +494,37 @@ fn road_geometry() -> Batch {
     }
     for i in -500..500 {
         let z = i as f32 * 12.0;
-        road.ground(0xe6bd57, -0.09, 0.09, z, z + 4.0);
-        road.ground(0x444b50, -0.09, 0.09, z + 4.0, z + 12.0);
+        road.pilot_ground(0xe6bd57, -0.09, 0.09, z, z + 4.0);
+        road.pilot_ground(0x444b50, -0.09, 0.09, z + 4.0, z + 12.0);
     }
     road
 }
 
-pub fn world(scene: &mut Scene) {
+pub struct Scenery {
+    chunks: Vec<(f32, Handle<Node>)>,
+    region: Option<(i32, i32)>,
+}
+impl Scenery {
+    /// Atualiza visibilidade por célula de 200 m, sem reconstruir malhas.
+    pub fn update(&mut self, graph: &mut Graph, position: [f32; 3]) {
+        let region = (
+            (position[0] / 200.0).floor() as i32,
+            (position[2] / 200.0).floor() as i32,
+        );
+        if self.region == Some(region) {
+            return;
+        }
+        self.region = Some(region);
+        let x = region.0 as f32 * 200.0 + 100.0;
+        let z = region.1 as f32 * 200.0 + 100.0;
+        for &(center, node) in &self.chunks {
+            graph[node].set_visibility(x.abs() <= 1100.0 && (center - z).abs() <= 1000.0);
+        }
+    }
+}
+pub fn world(scene: &mut Scene) -> Scenery {
+    let mut chunks = Vec::new();
+    let mut horizon = Batch::default();
     let mut materials = BTreeMap::new();
     scene.rendering_options.ambient_lighting_color = color(0xa9b9c7);
     scene.rendering_options.environment_lighting_source =
@@ -471,6 +547,9 @@ pub fn world(scene: &mut Scene) {
             let side = if i % 2 == 0 { -1.0 } else { 1.0 };
             let x = side * (18.0 + (seed % 63) as f32);
             let z = base + i as f32 * 25.0;
+            if x > 0.0 && (-1080.0..280.0).contains(&z) {
+                continue;
+            }
             let scale = 0.85 + (seed % 5) as f32 * 0.12;
             b.crown(0x70583e, [x, 0.0, z], 0.3, 3.8 * scale);
             if seed % 3 == 0 {
@@ -496,15 +575,22 @@ pub fn world(scene: &mut Scene) {
             }
         }
         for side in [-1.0, 1.0] {
-            b.crown(0x879578, [side * 230.0, -0.2, base + 90.0], 130.0, 47.0);
-            b.crown(0x73897b, [side * 440.0, -0.2, base + 30.0], 165.0, 85.0);
+            let near = if side > 0.0 && (-1200.0..400.0).contains(&base) {
+                580.0
+            } else {
+                230.0
+            };
+            horizon.crown(0x879578, [side * near, -0.2, base + 90.0], 130.0, 47.0);
+            horizon.crown(0x73897b, [side * 440.0, -0.2, base + 30.0], 165.0, 85.0);
         }
-        b.build_with_materials(
+        let node = b.build_with_materials(
             &format!("Paisagem {chunk}"),
             &mut scene.graph,
             &mut materials,
         );
+        chunks.push((base + 100.0, node));
     }
+    horizon.build_with_materials("Horizonte simplificado", &mut scene.graph, &mut materials);
     // Pequeno conjunto rural original, com telhados, portões e beirais legíveis.
     let mut village = Batch::default();
     for i in 0..4 {
@@ -518,6 +604,31 @@ pub fn world(scene: &mut Scene) {
         }
     }
     village.build_with_materials("Galpões rurais", &mut scene.graph, &mut materials);
+    let mut hub = Batch::default();
+    for depot in game_core::pilot::DEPOTS {
+        let z = depot.position[1];
+        hub.cuboid(0xe3d8bb, [18.0, 6.0, 36.0], [126.0, 3.0, z], 0.12);
+        hub.cuboid(0x4f7074, [20.0, 0.8, 38.0], [126.0, 6.3, z], 0.35);
+        for offset in [-10.0, 10.0] {
+            hub.cuboid(0x536469, [0.1, 4.0, 6.0], [116.9, 2.0, z + offset], 0.02);
+        }
+        // Complexo de apoio fora das faixas e da área de carga.
+        hub.cuboid(0xdfd7bd, [18.0, 4.0, 14.0], [76.0, 2.0, z + 66.0], 0.12);
+        hub.cuboid(0xe8c66c, [20.0, 0.5, 16.0], [76.0, 4.2, z + 66.0], 0.15);
+        for x in [58.0, 90.0] {
+            hub.cuboid(0x497d79, [1.0, 1.8, 0.8], [x, 0.9, z + 36.0], 0.1);
+            hub.cuboid(0xece6cc, [1.04, 0.6, 0.9], [x, 1.8, z + 36.0], 0.1);
+        }
+    }
+    hub.build_with_materials(
+        "Pátios e apoio do circuito piloto",
+        &mut scene.graph,
+        &mut materials,
+    );
+    Scenery {
+        chunks,
+        region: None,
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -545,7 +656,7 @@ mod tests {
             }
         }
         assert!(
-            count < 4100,
+            count < 12000,
             "pintura e solo excederam o orçamento: {count}"
         );
         let expected = 3200.0 * 12000.0;

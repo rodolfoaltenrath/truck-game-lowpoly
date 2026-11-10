@@ -19,7 +19,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             version: 1,
-            position: [0.0, 1.6, 0.0],
+            position: [60.0, 1.6, 0.0],
             rotation: [0.0, 0.0, 0.0, 1.0],
             paint: 0,
             shadows: false,

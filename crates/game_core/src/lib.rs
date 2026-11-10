@@ -10,6 +10,7 @@
 
 pub mod event_window;
 pub mod interpolation;
+pub mod pilot;
 pub mod protocol;
 pub mod remotes;
 pub mod session_client;
@@ -18,6 +19,7 @@ pub mod session_hub;
 mod session_hub_tests;
 pub mod session_protocol;
 pub mod session_timing;
+pub mod south;
 pub mod traffic;
 pub mod world;
 

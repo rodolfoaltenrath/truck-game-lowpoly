@@ -1,8 +1,19 @@
 # Mapa do Sul — proposta inicial
 
-Estado: projeto de mundo, ainda não implementado no cenário 3D. Referências
+Estado: atlas regional e circuito piloto implementados. Referências
 enviadas pelo proprietário em 10/11/2026; revisão de serviços e ligações abaixo
 é uma proposta de jogabilidade, sujeita a ajuste no próximo desenho.
+
+O módulo `game_core::south` contém 32 cidades, 47 ligações bidirecionais e
+12 complexos propostos. O atlas vetorial calcula rotas curtas, rápidas e sem
+pedágio. As coordenadas são próprias e esquemáticas; distâncias e pedágios
+não representam geografia, concessões ou viagens reais.
+
+No cenário 3D existe apenas o circuito piloto: dois pátios identificados com
+União da Vitória e Porto União, separados por 800 m, com via direta e retorno
+alternativo a leste. Essa escala de exercício é independente do atlas regional.
+M abre o mapa local, Tab alterna para o planejamento. Não confundir a rede
+desenhada no atlas com estradas regionais já dirigíveis.
 
 ## Direção adotada
 

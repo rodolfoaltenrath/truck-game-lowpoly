@@ -1,4 +1,5 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+mod atlas;
 mod diagnostics;
 mod network;
 mod settings;
@@ -20,7 +21,7 @@ use fyrox::{
         HorizontalAlignment, Thickness, UserInterface, VerticalAlignment,
         brush::Brush,
         text::{Text, TextBuilder, TextMessage},
-        widget::WidgetBuilder,
+        widget::{WidgetBuilder, WidgetMessage},
     },
     keyboard::{KeyCode, PhysicalKey},
     plugin::{Plugin, PluginContext, error::GameResult},
@@ -59,6 +60,9 @@ struct Options {
     /// Acelera em linha reta durante o smoke para verificar integração física/render.
     #[arg(long, requires = "smoke_frames")]
     smoke_drive: bool,
+    /// Abre o mapa no smoke, para inspeção da interface sem dirigir.
+    #[arg(long, requires = "smoke_frames", conflicts_with = "smoke_drive", value_parser = ["local", "regional"])]
+    smoke_map: Option<String>,
     /// Relatório JSON do teste nativo.
     #[arg(long)]
     report: Option<PathBuf>,
@@ -88,7 +92,11 @@ struct State {
     scene: Handle<Scene>,
     camera: Handle<Camera>,
     hud: Handle<Text>,
+    atlas: atlas::Atlas,
+    freight: game_core::pilot::TrainingFreight,
+    freight_message: String,
     vehicle: VehicleVisual,
+    scenery: visual::Scenery,
     sim: Simulation,
     previous: Snapshot,
     current: Snapshot,
@@ -115,7 +123,7 @@ impl Plugin for Game {
         ctx.user_interfaces
             .add(UserInterface::new(Vector2::new(1100.0, 700.0)));
         let mut scene = Scene::new();
-        visual::world(&mut scene);
+        let scenery = visual::world(&mut scene);
         DirectionalLightBuilder::new(
             BaseLightBuilder::new(
                 BaseBuilder::new().with_name("Sol").with_local_transform(
@@ -151,6 +159,7 @@ impl Plugin for Game {
         .with_shadow(true)
         .with_text("Iniciando...")
         .build(&mut ctx.user_interfaces.first_mut().build_ctx());
+        let mut atlas = atlas::Atlas::new(ctx.user_interfaces.first_mut());
         let mut sim = Simulation::new();
         sim.restore(truck_sim::Pose {
             position: saved.position,
@@ -159,6 +168,12 @@ impl Plugin for Game {
         .expect("preferências validadas");
         let current = sim.snapshot();
         let options = self.options.as_ref().expect("opções iniciais");
+        if let Some(mode) = &options.smoke_map {
+            atlas.toggle(ctx.user_interfaces.first());
+            if mode == "regional" {
+                atlas.key(KeyCode::Tab, ctx.user_interfaces.first_mut());
+            }
+        }
         let network = if options.solo {
             None
         } else {
@@ -171,7 +186,11 @@ impl Plugin for Game {
             scene,
             camera,
             hud,
+            atlas,
+            freight: game_core::pilot::TrainingFreight::default(),
+            freight_message: String::new(),
             vehicle,
+            scenery,
             sim,
             previous: current.clone(),
             current,
@@ -246,20 +265,43 @@ impl Plugin for Game {
                 WindowEvent::CloseRequested => ctx.loop_controller.exit(),
                 WindowEvent::KeyboardInput { event, .. } => {
                     if let PhysicalKey::Code(key) = event.physical_key {
+                        if s.atlas.open {
+                            s.keys.clear();
+                            if event.state == ElementState::Pressed && !event.repeat {
+                                if key == KeyCode::KeyR {
+                                    s.reset_to_hub();
+                                    s.atlas.toggle(ctx.user_interfaces.first());
+                                } else {
+                                    s.atlas.key(key, ctx.user_interfaces.first_mut());
+                                }
+                            }
+                            return Ok(());
+                        }
                         if event.state == ElementState::Released {
                             s.keys.remove(&key);
                         } else {
                             s.keys.insert(key);
                             if !event.repeat {
                                 match key {
+                                    KeyCode::KeyM => {
+                                        s.keys.clear();
+                                        s.dragging = false;
+                                        s.cursor = None;
+                                        s.atlas.toggle(ctx.user_interfaces.first());
+                                    }
                                     KeyCode::Escape => ctx.loop_controller.exit(),
                                     KeyCode::KeyR => {
-                                        s.sim.reset();
-                                        s.current = s.sim.snapshot();
-                                        s.previous = s.current.clone();
+                                        s.reset_to_hub();
                                     }
                                     KeyCode::KeyT => {
                                         s.sim.toggle_hitch();
+                                    }
+                                    KeyCode::KeyE => {
+                                        s.freight_message =
+                                            match s.freight.interact(observation(&s.current)) {
+                                                Ok(()) => String::new(),
+                                                Err(error) => freight_error(error).into(),
+                                            };
                                     }
                                     KeyCode::KeyC => s.camera_mode = (s.camera_mode + 1) % 3,
                                     KeyCode::KeyH => s.help = !s.help,
@@ -304,6 +346,13 @@ impl Plugin for Game {
                 - pressed(&[KeyCode::KeyA, KeyCode::ArrowLeft]),
             handbrake: s.keys.contains(&KeyCode::Space),
         };
+        if s.atlas.open {
+            input = Input {
+                brake: 1.0,
+                handbrake: true,
+                ..Input::default()
+            };
+        }
         if self.options.as_ref().is_some_and(|o| o.smoke_drive) {
             input.throttle = 1.0;
         }
@@ -312,6 +361,9 @@ impl Plugin for Game {
             s.previous = s.current.clone();
             s.sim.step(input);
             s.current = s.sim.snapshot();
+            if let Err(error) = s.freight.tick(DT, observation(&s.current)) {
+                s.freight_message = freight_error(error).into();
+            }
             s.accumulator -= DT;
         }
         if let Some(net) = s.network.as_mut() {
@@ -350,6 +402,7 @@ impl Plugin for Game {
             w.rotation = a.rotation + (w.rotation - a.rotation) * alpha;
         }
         s.vehicle.update(graph, &view);
+        s.scenery.update(graph, view.truck.position);
         if let Some(net) = s.network.as_mut() {
             let views = net.views();
             let ids = views.iter().map(|v| v.player).collect::<HashSet<_>>();
@@ -403,8 +456,17 @@ impl Plugin for Game {
         let graphics = ctx.graphics_context.as_initialized_mut();
         let fps = graphics.renderer.get_statistics().frames_per_second;
         if s.frames % 15 == 0 {
+            ctx.user_interfaces
+                .first()
+                .send(s.hud, WidgetMessage::Visibility(!s.atlas.open));
+            if s.atlas.open {
+                s.atlas.locate(
+                    ctx.user_interfaces.first_mut(),
+                    [view.truck.position[0], view.truck.position[2]],
+                );
+            }
             let help = if s.help {
-                "\nW/S: acelerar / frear / ré   A/D: direção\nEspaço: freio de mão   T: engate   R: reiniciar\nC: câmera   P: pintura   G: sombras   H: ajuda   Esc: sair"
+                "\nW/S: acelerar / frear / ré   A/D: direção\nEspaço: freio de mão   T: engate   R: voltar ao pátio\nE: frete de treino   M: mapa   C: câmera   P: pintura\nG: sombras   H: ajuda   Esc: sair"
             } else {
                 ""
             };
@@ -413,7 +475,7 @@ impl Plugin for Game {
                 .as_ref()
                 .map_or_else(|| "solo".into(), |n| n.status());
             let text = format!(
-                "SUL DO BRASIL · PROTÓTIPO NATIVO\n{:03.0} km/h  |  marcha {}  |  {:04.0} rpm\n{} FPS  ·  {}  ·  reboque {}\n{}{}",
+                "SUL DO BRASIL · PROTÓTIPO NATIVO\n{:03.0} km/h  |  marcha {}  |  {:04.0} rpm\n{} FPS  ·  {}  ·  reboque {}\n{}\n{}{}",
                 view.speed.abs() * 3.6,
                 view.gear,
                 view.rpm,
@@ -421,6 +483,7 @@ impl Plugin for Game {
                 if s.quality { "sombras" } else { "leve" },
                 if view.coupled { "engatado" } else { "solto" },
                 status,
+                s.freight_text(),
                 help
             );
             ctx.user_interfaces
@@ -451,6 +514,48 @@ impl Plugin for Game {
     }
 }
 impl State {
+    fn reset_to_hub(&mut self) {
+        let defaults = settings::Settings::default();
+        self.sim
+            .restore(truck_sim::Pose {
+                position: defaults.position,
+                rotation: defaults.rotation,
+            })
+            .expect("posição inicial interna");
+        self.freight = game_core::pilot::TrainingFreight::default();
+        self.freight_message.clear();
+        self.current = self.sim.snapshot();
+        self.previous = self.current.clone();
+        self.accumulator = 0.0;
+        self.keys.clear();
+    }
+    fn freight_text(&self) -> String {
+        use game_core::pilot::Stage;
+        let target = self.freight.target();
+        let distance =
+            game_core::south::distance(observation(&self.current).truck, target.position);
+        let phase = match self.freight.stage() {
+            Stage::Available => "E para aceitar e carregar · mantenha parado na área verde",
+            Stage::Loading => "carregando · mantenha o conjunto parado",
+            Stage::InTransit => "siga ao outro pátio · E para descarregar",
+            Stage::Unloading => "descarregando · mantenha o conjunto parado",
+            Stage::Complete => "entrega concluída · E para preparar o frete de retorno",
+        };
+        let progress = if matches!(self.freight.stage(), Stage::Loading | Stage::Unloading) {
+            format!(" · {:.0}%", self.freight.progress() * 100.0)
+        } else {
+            String::new()
+        };
+        format!(
+            "TREINO · {} · {:.0} m em linha reta\n{}{} · {} entregas no treino\n{}",
+            game_core::south::CITIES[target.city as usize].name,
+            distance,
+            phase,
+            progress,
+            self.freight.deliveries(),
+            self.freight_message
+        )
+    }
     fn save(&self) {
         let saved = settings::Settings {
             version: 1,
@@ -462,6 +567,26 @@ impl State {
         };
         if let Err(e) = saved.save(std::path::Path::new("settings.json")) {
             eprintln!("Não foi possível salvar: {e}");
+        }
+    }
+}
+fn observation(snapshot: &Snapshot) -> game_core::pilot::Observation {
+    game_core::pilot::Observation {
+        truck: [snapshot.truck.position[0], snapshot.truck.position[2]],
+        trailer: [snapshot.trailer.position[0], snapshot.trailer.position[2]],
+        speed: snapshot.speed,
+        coupled: snapshot.coupled,
+    }
+}
+fn freight_error(error: game_core::pilot::FreightError) -> &'static str {
+    use game_core::pilot::FreightError;
+    match error {
+        FreightError::OutsideDock => "Estacione cavalo e baú dentro da área verde do pátio.",
+        FreightError::Moving => "Pare o caminhão para movimentar a carga.",
+        FreightError::TrailerMissing => "Engate o baú antes de movimentar a carga.",
+        FreightError::Busy => "Aguarde a operação atual.",
+        FreightError::InvalidObservation | FreightError::InvalidStep => {
+            "Operação recusada: estado inválido."
         }
     }
 }

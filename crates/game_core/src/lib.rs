@@ -1,4 +1,4 @@
-//! Núcleo compartilhado entre o servidor nativo e o cliente web (WASM).
+//! Núcleo compartilhado diretamente entre cliente e servidor nativos Rust.
 //!
 //! Regra: nada de I/O aqui (sem `std::fs`, `std::net` em uso, relógio do
 //! sistema ou entropia do SO). Sockets, armazenamento, tempo monotônico em

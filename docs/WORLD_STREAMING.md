@@ -1,5 +1,10 @@
 # Mapa grande — primeira base da F4
 
+> **Histórico do cliente web (commit 346aced).** O cliente atual é nativo em
+> Rust. A seleção pura em `game_core::world` foi preservada, mas o streaming
+> visual descrito abaixo ainda precisa ser portado. A rodovia nativa inicial
+> serve para validar física e renderização; não abrir os antigos links web.
+
 O protótipo `/?world=road&solo` usa um terreno de 32 × 32 km dividido em
 regiões de 1 × 1 km. Só há conteúdo autorado num corredor reto de 12 km:
 Campo Dourado, Vale Claro e um posto intermediário. Nomes, geometria e

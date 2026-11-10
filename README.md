@@ -1,63 +1,113 @@
-# Jogo de caminhão 3D para navegador
+# Sul do Brasil — jogo de caminhão nativo
 
-Protótipo de um jogo original de caminhão em 3D, multiplayer, que roda no
-navegador. Cliente em TypeScript (Babylon.js + Rapier), servidor e núcleo
-compartilhado em Rust.
+Jogo original low poly em **Rust**, para **Windows e Linux**. Cliente Fyrox/OpenGL,
+física Rapier e servidor Rust. Sem Electron, WebView ou navegador no executável.
 
-Plano completo: [ROADMAP_JOGO_WEB.md](ROADMAP_JOGO_WEB.md).
+Direção vigente e pendências: [roadmap nativo](ROADMAP_JOGO_NATIVO.md).
+O [mapa do Sul](docs/MAPA_SUL.md), incluindo União da Vitória/Porto União como
+polo inicial multiplayer, ainda está em projeto. O executável usa uma rodovia
+de validação; não contém as 32 cidades planejadas.
 
-## Rodar
+## Executar
 
-Requisitos: Rust (rustup), `gcc`, Node 24 + pnpm e
-`cargo install wasm-bindgen-cli --version 0.2.130`.
-No ambiente Windows desta máquina, consultar [configuração local](docs/WINDOWS_DEV.md).
+Instale Rust com rustup. A primeira compilação baixa e compila a engine e pode
+demorar bastante. O jogo compilado não precisa de Rust, Node ou pnpm.
 
+```sh
+# Sozinho
+cargo run -p truck_client -- --solo
+
+# Multiplayer: servidor em um terminal e um cliente por jogador
+cargo run -p truck_server
+cargo run -p truck_client -- --server ws://127.0.0.1:39100 --room lan
 ```
-# terminal 1: sala do multiplayer
-cd web && pnpm server            # ws://0.0.0.0:39100, sala "lan"
 
-# terminal 2: jogo
-cd web && pnpm install && pnpm dev   # http://localhost:5173
+Outro PC usa `--server ws://IP-DO-SERVIDOR:39100`. Liberar a porta TCP 39100 no
+firewall da máquina que hospeda a sala. O servidor também pode rodar no Linux
+sem ambiente gráfico. Não é necessário abrir localhost:5173.
+
+**Windows:** Rust MSVC com C++ Build Tools ou Rust GNU com MinGW. Para esta
+máquina, consultar [WINDOWS_DEV.md](docs/WINDOWS_DEV.md).
+
+**Linux:** OpenGL 3.3 e bibliotecas de desenvolvimento para compilar:
+
+```sh
+# Fedora
+sudo dnf install gcc-c++ pkgconf-pkg-config alsa-lib-devel libX11-devel \
+  libXcursor-devel libXrandr-devel libXi-devel mesa-libGL-devel \
+  libxkbcommon-devel wayland-devel systemd-devel
+
+# Debian/Ubuntu
+sudo apt install build-essential pkg-config libasound2-dev libudev-dev \
+  libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev \
+  libxkbcommon-dev libwayland-dev
 ```
 
-Cada aba do navegador é um jogador. Outros PCs da rede local abrem
-`http://IP-DESTA-MÁQUINA:5173` e conectam sozinhos na sala desta máquina.
-Parâmetros de URL: `?solo` (sem rede), `?servidor=ws://host:39100`,
-`?sala=nome`, `?webgpu` (tenta WebGPU; padrão WebGL2). Para testar sozinho
-com um "fantasma" seu: `pnpm server --echo`.
+Os dados ficam no diretório local do usuário (`SulDoBrasil` no Windows,
+`suldobrasil` conforme XDG no Linux). Use `--data-dir ./userdata` para guardar
+preferências e posição em uma pasta escolhida, inclusive junto ao executável.
 
-Mapa experimental da F4: abrir `http://localhost:5173/?world=road&solo`.
-São 12 km de rodovia entre dois povoados, com terreno e colisores carregados
-por regiões. A pista de testes continua no endereço original.
-Detalhes e próximos passos: [mapa grande](docs/WORLD_STREAMING.md).
+## Controles do primeiro port
 
-## Controles
+| Ação | Tecla |
+|---|---|
+| Acelerar | W / ↑ |
+| Frear / ré ao segurar parado | S / ↓ |
+| Direção | A/D / ←/→ |
+| Freio de mão | Espaço |
+| Engatar/desengatar próximo e parado | T |
+| Reiniciar conjunto na origem | R |
+| Câmera externa, frontal, aérea | C |
+| Orbitar câmera externa / zoom | Arrastar botão direito / roda do mouse |
+| Pintura | P |
+| Sombras ligadas/desligadas | G |
+| Mostrar ajuda | H |
+| Sair | Esc |
 
-| Ação | Teclado | Controle |
-|---|---|---|
-| Acelerar | W / ↑ | RT |
-| Frear / ré (segurar parado) | S / ↓ | LT |
-| Esterçar | A D / ← → | analógico esquerdo |
-| Freio de mão | Espaço | A |
-| Trocar câmera | C | Y |
-| Endireitar | R | Back |
-| Olhar em volta | arrastar o mouse (roda = zoom) | — |
-| Engatar reboque | dar ré até encostar | — |
-| Desengatar reboque | T (parado) | B |
-| Trocar pintura | P | — |
-| Qualidade gráfica | G | — |
-| Esconder ajuda | H | — |
+O preset inicial prioriza leveza e nitidez, sem redução automática de resolução.
+Gamepad, áudio, outros tipos de reboque e engate automático ainda precisam de
+port. Consulte o roadmap antes de considerar equivalentes os marcos web antigos.
+
+## Validar
+
+```sh
+cargo fmt --all --check
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo run -p truck_client -- --solo --smoke-frames 180 \
+  --report native-smoke.json --data-dir ./target/smoke-userdata
+```
+
+O smoke abre uma janela real e grava um relatório; exige sessão gráfica e
+OpenGL. Não mede, sozinho, conforto ao dirigir ou multiplayer entre pessoas.
+
+## Pacote portátil
+
+```sh
+cargo run -p xtask -- dist
+# Ou um pacote de desenvolvimento, sem otimização release:
+cargo run -p xtask -- dist --dev
+```
+
+O comando compila cliente e servidor para o sistema atual e cria `dist/`,
+incluindo documentação e avisos de licença. No Windows, extrair o ZIP e
+executar `truck_client.exe`; no Linux, extrair o `.tar.gz` e executar
+`./truck_client`. O servidor é opcional para jogar sozinho (`--solo`).
+Os pacotes não instalam nem incluem navegador. Linux depende das bibliotecas
+do sistema e de um driver OpenGL; a versão mínima de glibc depende do ambiente
+em que o pacote foi compilado. O CI gera pacotes separados por plataforma,
+sem publicar releases automaticamente.
 
 ## Estrutura
 
+```text
+crates/client/     cliente Rust nativo, render, teclado, HUD, rede e dados locais
+crates/game_sim/   física e trem de força Rust, passo fixo, sem I/O
+crates/game_core/  protocolo, sala, sessão, interpolação, seleção de regiões
+crates/server/     servidor da sala, Tokio + WebSocket
+crates/xtask/      empacotamento e coleta dos avisos de licença
+legacy/           fonte de extração do mod antigo, fora do Git/workspace
 ```
-crates/game_core/   núcleo Rust sem I/O: protocolo, sala, cliente, interpolação
-crates/game_core_wasm/  ponte wasm-bindgen para o navegador
-crates/server/      servidor da sala (Tokio + WebSocket)
-web/                cliente Vite + TypeScript
-  src/vehicle/      caminhão, trem de força
-  src/world/        pista de testes procedural
-  src/net/          WebSocket, sessão (WASM) e caminhões remotos
-  e2e/              testes Playwright
-legacy/mod-18wos/   código do mod antigo, fonte para extração
-```
+
+Geometria e paleta são próprias. Fontes e dependências têm suas licenças
+registradas em [CONTENT_LICENSES.md](docs/CONTENT_LICENSES.md).

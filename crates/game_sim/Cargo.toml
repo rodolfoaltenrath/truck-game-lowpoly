@@ -1,0 +1,11 @@
+[package]
+name = "truck_sim"
+description = "Simulação nativa e determinística do caminhão e reboques, sem I/O."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+rapier3d = { version = "=0.32.0", features = ["enhanced-determinism"] }
+serde.workspace = true

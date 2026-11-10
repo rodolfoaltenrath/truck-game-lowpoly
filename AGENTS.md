@@ -1,6 +1,6 @@
-# Orientações para agentes — jogo de caminhão web
+# Orientações para agentes — jogo de caminhão nativo
 
-Leia `ROADMAP_JOGO_WEB.md` (visão, stack, fases F0–F13 e estado de cada uma)
+Leia `ROADMAP_JOGO_NATIVO.md` (decisão de migração, stack e estado das fases)
 e `docs/ART_STYLE.md` (estilo low poly, paleta, regras de modelagem) antes de
 implementar.
 
@@ -14,11 +14,13 @@ jogo. Não adicionar `legacy/` ao workspace.
 
 ## Regras
 
-- Rust para servidor, núcleo compartilhado (`crates/game_core`), regras e
-  ferramentas. TypeScript só no cliente web (`web/`). Shaders, HTML/CSS e SQL
-  quando necessário. Nenhuma outra linguagem sem decisão registrada.
-- Lógica compartilhada não é reescrita em TS: passa por `game_core` em WASM.
-- `game_core` não faz I/O (sem `std::fs`, `std::net`, relógio do sistema).
+- Em 10/11/2026 o proprietário decidiu migrar para **100% Rust nativo**, em
+  Windows e Linux, sem navegador, Electron ou WebView no binário.
+- Rust para cliente (`crates/client`, Fyrox/OpenGL), física (`crates/game_sim`),
+  servidor, núcleo compartilhado (`crates/game_core`) e ferramentas.
+  Shaders e SQL quando necessários. Nenhuma outra linguagem sem decisão registrada.
+- Cliente e servidor usam `game_core` diretamente; nenhuma ponte WASM.
+- `game_core` e `truck_sim` não fazem I/O (sem arquivos, rede ou relógio do sistema).
 - Conteúdo (modelos, texturas, sons, fontes) só próprio ou com licença que
   permita o uso; registrar origem e licença. Nada de assets de jogos
   comerciais nem de mods derivados deles, nem para teste.
@@ -31,25 +33,24 @@ jogo. Não adicionar `legacy/` ao workspace.
   `Co-authored-by`). Não inferir autorização para releases ou mensagens
   externas.
 
-## Ambiente (Fedora, sem sudo)
+## Ambiente
 
-- Node 24 LTS em `~/.local/opt/node` (links em `~/.local/bin`), pnpm 10.
-- Rust via rustup em `~/.cargo` (toolchain fixado em `rust-toolchain.toml`,
-  alvo `wasm32-unknown-unknown`).
-- `gcc` instalado pelo proprietário em 10/11/2026; `wasm-bindgen-cli`
-  0.2.130 via `cargo install` (versão precisa bater com o `Cargo.lock`).
-- Push por SSH (chave do proprietário, sem senha) para `origin`.
+- Rust via rustup, toolchain fixado em `rust-toolchain.toml`.
+- Windows: MSVC ou GNU/MinGW; configuração local em `docs/WINDOWS_DEV.md`.
+- Linux: compilador C, ALSA, OpenGL e bibliotecas de desenvolvimento X11/Wayland.
+- WSL não substitui validação numa instalação Linux com GPU real.
+- Push para `origin` usando a autenticação já configurada.
 
 ## Fluxo de desenvolvimento
 
 ```
-cd web
-pnpm server       # sala em ws://0.0.0.0:39100 (Rust)
-pnpm dev          # gera o WASM e abre http://localhost:5173 com recarga
-pnpm check        # tsc + biome
-pnpm test:e2e     # Playwright (sobe Vite e servidor se preciso)
+cargo run -p truck_server        # ws://0.0.0.0:39100
+cargo run -p truck_client -- --solo
+cargo fmt --all --check
 cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-Em modo dev, `window.__game` expõe `telemetry()`, `setInput()` e `teleport()`
-para testes e console. A pose do caminhão sobrevive ao recarregamento.
+Use `--smoke-frames N --report caminho.json --data-dir pasta` para provas
+nativas isoladas. A pose e as preferências ficam em arquivo local limitado.
+`ROADMAP_JOGO_WEB.md` registra o histórico anterior à migração; testes web
+antigos não provam o comportamento do cliente nativo.

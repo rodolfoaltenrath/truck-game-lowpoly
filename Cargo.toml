@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/game_core", "crates/game_core_wasm", "crates/server"]
+members = ["crates/game_core", "crates/game_sim", "crates/client", "crates/server", "crates/xtask"]
 exclude = ["legacy"]
 resolver = "3"
 
@@ -15,7 +15,17 @@ serde_json = "1"
 
 [profile.release]
 lto = "thin"
+strip = "debuginfo"
 
-# O cliente web baixa o .wasm: priorizar tamanho.
-[profile.release.package.game_core_wasm]
-opt-level = "s"
+[profile.dev.package."*"]
+opt-level = 2
+
+# Evita otimização e símbolos gigantes da UI durante o desenvolvimento.
+# O perfil release mantém a otimização normal de todas as dependências.
+[profile.dev.package.fyrox-ui]
+opt-level = 0
+debug = 0
+
+[profile.dev.package.fyrox-impl]
+opt-level = 1
+debug = 0

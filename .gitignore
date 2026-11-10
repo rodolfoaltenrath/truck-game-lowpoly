@@ -1,11 +1,12 @@
 # Rust
 /target/
+/dist/
+/userdata/
+/native-smoke.json
 
-# Web
-node_modules/
-web/dist/
-web/test-results/
-web/playwright-report/
+# Caches locais remanescentes do protótipo web, fora do projeto nativo
+/web/
+/node_modules/
 
 # Assets gerados / conteúdo de terceiros não versionado
 /assets/
@@ -20,6 +21,3 @@ web/playwright-report/
 
 # Código do mod antigo: já versionado no repo 18wos-across-america-mp; aqui só cópia local para extração
 /legacy/
-
-# Pacote WASM gerado por `pnpm wasm`
-web/wasm/

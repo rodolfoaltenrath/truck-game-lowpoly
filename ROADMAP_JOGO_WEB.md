@@ -1,5 +1,10 @@
 # Roadmap — Jogo de caminhão 3D multiplayer para navegador
 
+> **Histórico do protótipo web.** Em 10/11/2026 o proprietário decidiu migrar
+> para Rust nativo em Windows e Linux. A direção vigente e os resultados do
+> port ficam em [ROADMAP_JOGO_NATIVO.md](ROADMAP_JOGO_NATIVO.md). As referências
+> a TypeScript, WASM, navegador e Playwright abaixo descrevem a versão anterior.
+
 > Documento de planejamento. Nada aqui está implementado ainda, salvo onde
 > dito explicitamente. O `ROADMAP.MD` existente continua sendo o histórico do
 > mod para 18 Wheels of Steel e **não** descreve este jogo.

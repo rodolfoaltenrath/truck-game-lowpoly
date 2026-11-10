@@ -28,14 +28,19 @@ Traços a perseguir:
 
 ## Regras técnicas
 
+Na versão nativa, as primitivas, a paleta e a montagem por material ficam em
+`crates/client/src/visual.rs`. São portas da geometria original do protótipo,
+com índices ajustados à orientação do OpenGL. Rodas usam 14 lados e geometria
+separada; o vão inferior da cabine e os para-lamas respeitam a suspensão.
+
 | Regra | Como |
 |---|---|
 | Faces planas | Toda peça em flat shading (`convertToFlatShadedMesh` ou geometria gerada com normais por face). |
-| Quinas chanfradas | `chamferBox` em `web/src/render/geometry.ts`; chanfro 2–6% da menor dimensão. |
+| Quinas chanfradas | `Batch::cuboid` em `crates/client/src/visual.rs`; chanfro 2–6% da menor dimensão nas peças principais. |
 | Poucos lados | Cilindros de 6–14 lados conforme o tamanho na tela (rodas 14, tanques 10–12, troncos 6). |
-| Paleta única | Toda cor sai de `web/src/render/palette.ts`. Cor nova entra lá, com nome. |
-| Sem textura | Cor por vértice. Material próprio só para o que muda em jogo (pintura, luzes) ou tem brilho especial (vidro). |
-| Poucas chamadas de desenho | Peças de um objeto fundidas com `mergeParts`; objetos repetidos (árvores, pedras) com thin instances. |
+| Paleta única | Paleta original portada para `crates/client/src/visual.rs`; manter cores coesas. |
+| Sem textura | Cores sólidas por material compartilhado; geometria agrupada em superfícies por cor. |
+| Poucas chamadas de desenho | Peças agrupadas em `Batch`; rodas clonadas compartilham recursos de malha/material. Instâncias de cenário são uma próxima otimização. |
 | Escala | 1 unidade = 1 metro. Caminhão ~2,5 m de largura, cabine ~3,3 m de altura total. |
 | Eixos | +Y para cima, +Z para frente, +X para a esquerda (sistema destro). |
 | Gerado por código ou próprio | Sem assets de terceiros sem licença registrada; nada de jogos comerciais nem mods derivados. |
@@ -50,7 +55,16 @@ Traços a perseguir:
 | Prédio pequeno | ≤ 1.500 |
 | Carro de trânsito | ≤ 1.500 |
 
-## Pós-processamento (`web/src/render/graphics.ts`)
+## Renderização nativa
+
+Fyrox/OpenGL 3.3, janela em resolução nativa. Preset inicial sem SSAO, HDR,
+FXAA ou sombras; G alterna sombras de 512. Não reduzir automaticamente a
+resolução. Reavaliar antialiasing e brilho após medir custo e nitidez na GPU
+real; o port inicial não promete equivalência de iluminação com Babylon.
+
+## Histórico do pós-processamento web
+
+As opções abaixo descrevem o protótipo anterior à migração, não o cliente atual.
 
 | Qualidade | O que liga |
 |---|---|

@@ -173,6 +173,34 @@ impl Drop for Network {
         for f in self.client.poll(now).0 {
             self.send(&f);
         }
+        // Leave é confiável: conservar o transporte e consumir a confirmação
+        // antes de destruí-lo. Encerrar logo após escrever não garante recepção.
+        let leave_deadline = Instant::now() + Duration::from_millis(350);
+        while self.up
+            && Instant::now() < leave_deadline
+            && matches!(
+                self.client.status().phase,
+                game_core::session_client::Phase::Closing
+            )
+        {
+            let now = self.start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+            for _ in 0..64 {
+                match self.rx.try_recv() {
+                    Ok(Incoming::Packet(bytes)) => {
+                        self.client.ingest(&bytes, now);
+                    }
+                    Ok(Incoming::Down) => {
+                        self.up = false;
+                    }
+                    Ok(Incoming::Up) => {}
+                    Err(_) => break,
+                }
+            }
+            for frame in self.client.poll(now).0 {
+                self.send(&frame);
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
         self.stop.store(true, Ordering::Release);
         let deadline = Instant::now() + Duration::from_millis(150);
         while self.worker.as_ref().is_some_and(|w| !w.is_finished()) && Instant::now() < deadline {

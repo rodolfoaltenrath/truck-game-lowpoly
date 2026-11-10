@@ -527,8 +527,9 @@ servidor.
 
 ## 19. Decisões pendentes
 
-1. **Mapa**: país/região fictícia ou inspirada em região real (por exemplo,
-   rodovias brasileiras estilizadas)?
+1. **Mapa**: resolvido em 10/11/2026: Sul do Brasil estilizado (PR/SC/RS),
+   com distribuição relativamente fiel e distâncias comprimidas. Proposta
+   de 32 cidades e início em União da Vitória/Porto União em `docs/MAPA_SUL.md`.
 2. **Código do mod**: mover para `legacy/` neste repositório ou manter só no
    repositório antigo?
 3. **Assets fonte**: Git LFS ou armazenamento separado?
@@ -756,9 +757,35 @@ servidor.
   defeitos relatados exclusivamente ao hardware; havia interferências
   verificáveis no modelo e redução excessiva de resolução no código.
 
+### 10/11/2026 — Projeto do mapa do Sul e polo inicial multiplayer
+
+- Proprietário definiu PR/SC/RS e enviou rascunho com dez cidades por estado.
+  Adotadas as categorias de rodovias principais/secundárias, serviços na
+  estrada, alternativas de percurso e compressão de distâncias.
+- União da Vitória (PR) e Porto União (SC) acrescentadas como proposta de
+  polo inicial compartilhado: 32 cidades (PR 11, SC 11, RS 10), preservando
+  as 30 do desenho. Projeto documentado em `docs/MAPA_SUL.md`.
+- Propostas sequências de ligações entre cidades, 12 complexos de apoio e
+  critérios de revisão de combustível, descanso, oficinas e pedágios. Os
+  serviços são projetos do jogo, não estabelecimentos reais geolocalizados.
+- Polo inicial prevê garagem, serviços e 16 vagas distintas. Política
+  proposta: jogadores novos partem do polo; reconexões retomam posição
+  válida. Reserva de vagas pelo servidor ainda não implementada.
+- Fontes oficiais DNIT/Transportes/DER-PR/SIE-SC/DAER-RS indicadas para
+  conferir numeração e acessos. As ligações propostas são esquemáticas,
+  podem combinar várias rodovias e ainda não têm coordenadas/splines.
+- **Validação**: revisão documental de cidades, contagem, ligações e
+  referências; `git diff --check`. Sem alteração de código executável ou
+  testes de jogo nesta entrega; cenário atual e spawn ainda são os do
+  protótipo anterior. Não declarar as 32 cidades ou serviços dirigíveis.
+- **Pendente**: próxima revisão do desenho, escala/tempos de viagem,
+  coordenadas, relevo, formato de dados e primeiro cenário do polo inicial.
+
 ### Próximo passo
 
-Validar direção e multiplayer com pessoas em LAN; na F4, definir o formato
-de estradas/relevo/prefabs e implementar `world_tools`, curvas e relevo
-antes de ampliar o conteúdo. Depois, pacotes por região, fila assíncrona e
-LOD, medindo o orçamento por quadro. F5 permanece pendente.
+Revisar o desenho do Sul conforme `docs/MAPA_SUL.md`; na F4, definir o formato
+de estradas/relevo/prefabs e construir o polo União da Vitória/Porto União,
+com um circuito inicial e serviços próximos. Implementar `world_tools`,
+curvas e relevo antes de ampliar o conteúdo. Validar direção, nitidez e
+multiplayer com pessoas em LAN. Depois, pacotes por região, fila assíncrona
+e LOD, medindo o orçamento por quadro. F5 permanece pendente.
